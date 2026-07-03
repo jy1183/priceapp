@@ -6,6 +6,7 @@ import { DEFAULT_CONFIG } from '@/lib/calc/constants';
 import type { Facility, Trade } from '@/lib/molit';
 import RegionPicker, { type RegionValue } from '@/components/RegionPicker';
 import TxCharts from '@/components/TxCharts';
+import { useStore } from '@/lib/store';
 
 const FACILITIES: Facility[] = ['아파트', '오피스텔', '연립다세대', '단독다가구', '토지', '상업업무용'];
 const PERIODS = [
@@ -36,6 +37,7 @@ export default function TransactionsPage() {
   const [rows, setRows] = useState<TxRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
+  const setTxStore = useStore((st) => st.setTx);
 
   async function query() {
     setLoading(true); setErr(''); setRows([]);
@@ -50,6 +52,7 @@ export default function TransactionsPage() {
         for (const it of j.items ?? []) all.push(normalize(facility, trade, it));
       }
       setRows(all);
+      setTxStore(all, { facility, trade, region: `${region.sido} ${region.dong}`.trim(), from, to });
       if (all.length === 0) setErr('조회 결과가 없습니다. 기간·지역을 조정해 보세요.');
     } catch (e) { setErr(String(e)); }
     finally { setLoading(false); }

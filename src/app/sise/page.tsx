@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { parseSiseRaw, parseNaverPaste, type SiseRawInput } from '@/lib/calc/sise';
 import { aggregate } from '@/lib/calc/aggregate';
 import { DEFAULT_CONFIG, SISE_FACILITIES } from '@/lib/calc/constants';
+import { useStore } from '@/lib/store';
 
 interface Row extends SiseRawInput { id: number }
 let _id = 1;
@@ -37,6 +38,7 @@ export default function SisePage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [paste, setPaste] = useState('');
   const [confirmed, setConfirmed] = useState(false);
+  const setSise = useStore((st) => st.setSise);
 
   function doParse(text: string) {
     const parsed: Row[] = parseNaverPaste(text).map((it) => ({ id: _id++, ...it }));
@@ -81,7 +83,16 @@ export default function SisePage() {
         <div className="mt-2 flex gap-2">
           <button onClick={() => doParse(paste)} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">파싱</button>
           <button onClick={() => { setPaste(SAMPLE); doParse(SAMPLE); }} className="rounded-md border px-4 py-2 text-sm">샘플 넣기</button>
-          {rows.length > 0 && <button onClick={() => setConfirmed(true)} disabled={errorCount > 0}
+          {rows.length > 0 && <button onClick={() => {
+              setConfirmed(true);
+              setSise(
+                results.filter((x) => x.p.errors.length === 0).map((x) => ({
+                  facility: x.r.facility, deal: x.p.row.deal,
+                  ppaSupply: x.p.ppa.ppaSupply ?? null, ppaExcl: x.p.ppa.ppaExcl ?? null,
+                })),
+                { parsedCount: results.length, errorCount },
+              );
+            }} disabled={errorCount > 0}
             className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50">
             {errorCount > 0 ? `오류 ${errorCount}행 수정 필요` : '확정 → 분석 반영'}</button>}
         </div>

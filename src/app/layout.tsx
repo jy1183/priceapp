@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import Link from 'next/link';
+import ProjectBar from '@/components/ProjectBar';
 
 export const metadata: Metadata = {
   title: '주변 가격 분석',
@@ -35,7 +36,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               ))}
             </nav>
           </aside>
-          <main className="flex-1 px-8 py-6">{children}</main>
+          <div className="flex flex-1 flex-col">
+            <ProjectBar />
+            <main className="flex-1 px-8 py-6">{children}</main>
+          </div>
         </div>
       </body>
     </html>
