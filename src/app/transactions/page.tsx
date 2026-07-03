@@ -4,6 +4,8 @@ import { normalize, type TxRecord } from '@/lib/normalize';
 import { aggregate } from '@/lib/calc/aggregate';
 import { DEFAULT_CONFIG } from '@/lib/calc/constants';
 import type { Facility, Trade } from '@/lib/molit';
+import RegionPicker, { type RegionValue } from '@/components/RegionPicker';
+import TxCharts from '@/components/TxCharts';
 
 const FACILITIES: Facility[] = ['아파트', '오피스텔', '연립다세대', '단독다가구', '토지', '상업업무용'];
 const PERIODS = [
@@ -25,8 +27,7 @@ function monthsBetween(from: string, to: string): string[] {
 }
 
 export default function TransactionsPage() {
-  const [lawdCd, setLawdCd] = useState('11560');
-  const [dong, setDong] = useState('영등포동8가');
+  const [region, setRegion] = useState<RegionValue>({ sido: '서울특별시', lawdCd: '11560', dong: '영등포동8가' });
   const [facility, setFacility] = useState<Facility>('오피스텔');
   const [trade, setTrade] = useState<Trade>('매매');
   const [from, setFrom] = useState('202501');
@@ -42,7 +43,7 @@ export default function TransactionsPage() {
       const months = monthsBetween(from, to);
       const all: TxRecord[] = [];
       for (const ymd of months) {
-        const p = new URLSearchParams({ facility, trade, lawdCd, ymd, dong });
+        const p = new URLSearchParams({ facility, trade, lawdCd: region.lawdCd, ymd, dong: region.dong });
         const res = await fetch(`/api/molit?${p}`);
         const j = await res.json();
         if (j.error) throw new Error(j.error);
@@ -91,8 +92,7 @@ export default function TransactionsPage() {
       </p>
 
       <div className="no-print mb-4 flex flex-wrap items-end gap-3 rounded-lg border bg-white p-4">
-        <L label="시군구코드(5)"><input value={lawdCd} onChange={(e) => setLawdCd(e.target.value)} className="w-24 rounded border px-2 py-1" /></L>
-        <L label="동"><input value={dong} onChange={(e) => setDong(e.target.value)} className="w-32 rounded border px-2 py-1" /></L>
+        <RegionPicker value={region} onChange={setRegion} />
         <L label="시설유형">
           <select value={facility} onChange={(e) => setFacility(e.target.value as Facility)} className="rounded border px-2 py-1">
             {FACILITIES.map((f) => <option key={f}>{f}</option>)}
@@ -137,6 +137,8 @@ export default function TransactionsPage() {
             <Stat label="상위30% 평균" v={agg.top30} />
             <Stat label="상위50% 평균" v={agg.top50} />
           </div>
+
+          <TxCharts rows={filtered} />
 
           <div className="overflow-x-auto rounded-lg border bg-white">
             <table className="w-full text-sm">
