@@ -39,3 +39,32 @@ describe('시세 파서 · 평당가', () => {
     expect(ppa.convertedSale).toBe(0);
   });
 });
+
+import { parseNaverPaste } from '../sise';
+describe('네이버 붙여넣기 파서 (anchor=가격줄)', () => {
+  const paste = [
+    '리버리치', '매매 3억 5,000', '오피스텔', '5년차(2016.03.)', '전용 39.98㎡', '5/15층', '남향',
+    '확인매물 25.06.30.', '리버리치공인중개사', '',
+    '문래자이', '전세 6억', '아파트', '전용 84.9㎡', '12/25층',
+  ].join('\n');
+
+  it('가격 줄 기준으로 2건 추출·필드 매핑·노이즈 제거', () => {
+    const items = parseNaverPaste(paste);
+    expect(items).toHaveLength(2);
+    expect(items[0].name).toBe('리버리치');
+    expect(items[0].facility).toBe('오피스텔');
+    expect(items[0].approvalDate).toBe('5년차');
+    expect(items[0].amountText).toBe('매매 3억 5,000');
+    expect(items[0].areaText).toContain('전용 39.98㎡');
+    expect(items[0].areaText).toContain('5/15층');
+    expect(items[0].areaText).toContain('남향');
+    expect(items[1].facility).toBe('아파트');
+    expect(items[1].amountText).toBe('전세 6억');
+  });
+
+  it('노이즈(공인중개사/확인매물)는 기타로 안 들어감', () => {
+    const items = parseNaverPaste(paste);
+    expect(items[0].areaText).not.toContain('공인중개사');
+    expect(items[0].areaText).not.toContain('확인매물');
+  });
+});

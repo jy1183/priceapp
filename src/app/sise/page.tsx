@@ -1,15 +1,37 @@
 'use client';
 import { useMemo, useState } from 'react';
-import { parseSiseRaw, type SiseRawInput } from '@/lib/calc/sise';
+import { parseSiseRaw, parseNaverPaste, type SiseRawInput } from '@/lib/calc/sise';
 import { aggregate } from '@/lib/calc/aggregate';
 import { DEFAULT_CONFIG, SISE_FACILITIES } from '@/lib/calc/constants';
 
 interface Row extends SiseRawInput { id: number }
 let _id = 1;
 
-const SAMPLE = `오피스텔\t매매 3억5000\t전용39.98㎡ 5/15층
-오피스텔\t월세 3000/130\t전용29.7㎡ 3/15층
-아파트\t전세 6억\t전용84.9㎡ 12/25층`;
+const SAMPLE = [
+  '당산역 리버리치',
+  '매매 3억 5,000',
+  '오피스텔',
+  '5년차(2016.03.)',
+  '전용 39.98㎡',
+  '5/15층',
+  '남향',
+  '확인매물 25.06.30.',
+  '리버리치공인중개사',
+  '',
+  '롯데캐슬',
+  '월세 3,000/130',
+  '오피스텔',
+  '전용 29.7㎡',
+  '3/15층',
+  '',
+  '문래자이',
+  '전세 6억',
+  '아파트',
+  '9년차',
+  '전용 84.9㎡',
+  '12/25층',
+  '동향',
+].join('\n');
 
 export default function SisePage() {
   const [rows, setRows] = useState<Row[]>([]);
@@ -17,10 +39,7 @@ export default function SisePage() {
   const [confirmed, setConfirmed] = useState(false);
 
   function doParse(text: string) {
-    const parsed: Row[] = text.trim().split('\n').filter(Boolean).map((line) => {
-      const [facility, amountText, areaText, approvalDate, name] = line.split('\t').map((s) => s?.trim() ?? '');
-      return { id: _id++, facility: facility || '기타', amountText: amountText || '', areaText: areaText || '', approvalDate, name };
-    });
+    const parsed: Row[] = parseNaverPaste(text).map((it) => ({ id: _id++, ...it }));
     setRows(parsed); setConfirmed(false);
   }
 
@@ -51,13 +70,13 @@ export default function SisePage() {
     <div className="max-w-6xl">
       <h1 className="mb-1 text-2xl font-bold">시세 입력 · 분석</h1>
       <p className="mb-4 text-sm text-gray-600">
-        네이버 부동산 데이터를 붙여넣으면 파싱 기준표로 정리합니다(탭 구분: 시설 · 금액 · 면적·층 · [승인일] · [건물명]).
+        네이버 부동산 매물목록을 그대로(세로 여러 줄) 붙여넣으면 가격 줄을 기준으로 건물명·유형·승인일·면적·층·향을 자동 인식해 기준표로 정리합니다.
         오류 행은 빨간색으로 표시되며 셀에서 직접 수정할 수 있습니다. 확정 시 시세 분석에 반영됩니다.
       </p>
 
       <div className="no-print mb-4 rounded-lg border bg-white p-4">
-        <textarea value={paste} onChange={(e) => setPaste(e.target.value)} rows={4}
-          placeholder={`탭으로 구분해 붙여넣기 (예)\n${SAMPLE}`}
+        <textarea value={paste} onChange={(e) => setPaste(e.target.value)} rows={8}
+          placeholder={`네이버 매물목록을 그대로 붙여넣기 (예)\n${SAMPLE}`}
           className="w-full rounded border px-2 py-1 font-mono text-xs" />
         <div className="mt-2 flex gap-2">
           <button onClick={() => doParse(paste)} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">파싱</button>
@@ -73,7 +92,7 @@ export default function SisePage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-left text-gray-600">
               <tr>
-                <th className="px-2 py-2">시설</th><th className="px-2 py-2">금액(원문)</th><th className="px-2 py-2">면적·층(원문)</th>
+                <th className="px-2 py-2">건물명</th><th className="px-2 py-2">시설</th><th className="px-2 py-2">금액(원문)</th><th className="px-2 py-2">면적·층(원문)</th>
                 <th className="px-2 py-2">거래</th><th className="px-2 py-2">금액(천원)</th><th className="px-2 py-2">전용㎡</th>
                 <th className="px-2 py-2">평당가-공급</th><th className="px-2 py-2">평당가-전용</th><th className="px-2 py-2">비고</th>
               </tr>
@@ -81,6 +100,7 @@ export default function SisePage() {
             <tbody>
               {results.map(({ r, p }) => (
                 <tr key={r.id} className={`border-t ${p.errors.length ? 'bg-red-50' : ''}`}>
+                  <td className="px-1 py-1"><input value={r.name ?? ''} onChange={(e) => edit(r.id, 'name', e.target.value)} className="w-28 rounded border px-1 py-0.5 text-xs" /></td>
                   <td className="px-1 py-1">
                     <select value={r.facility} onChange={(e) => edit(r.id, 'facility', e.target.value)} className="rounded border px-1 py-0.5 text-xs">
                       {SISE_FACILITIES.map((f) => <option key={f}>{f}</option>)}

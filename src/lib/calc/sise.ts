@@ -127,3 +127,76 @@ export function parseSiseRaw(inp: SiseRawInput, cfg: AnalysisConfig): SiseParsed
   };
   return { row, ppa: computeSiseRow(row, cfg), errors };
 }
+
+/* ===== 네이버 부동산 붙여넣기 파서 (시세파싱참고.md VBA 이식) ===== */
+const _BLD_TYPES = ['아파트','원룸','상가점포','오피스텔','빌라/연립','빌라','연립다세대','단독/다가구','단독주택','다가구','상가','사무실','공장/창고','토지','주택','다세대','전원주택','상가주택','상가건물','지식산업센터','기타'];
+
+function isPriceLine(s: string): boolean {
+  return /매매|전세|월세|억/.test(s);
+}
+function isBuildingType(s: string): boolean { return _BLD_TYPES.includes(s.trim()); }
+function isYearInfo(s: string): boolean { return s.includes('년차'); }
+function extractApprovalDate(s: string): string {
+  const p = s.indexOf('(');
+  return (p > 0 ? s.slice(0, p) : s).trim();
+}
+function isFloorLine(s: string): boolean { return s.includes('층') && /\d/.test(s); }
+function isDirectionLine(s: string): boolean {
+  if (['남향','북향','동향','서향','남동향','남서향','북동향','북서향'].includes(s)) return true;
+  return s.endsWith('향') && s.length <= 5;
+}
+const _NOISE = ['확인매물','매물 보러가기','관심매물','매물 이미지','매물목록','VR이미지','360도','Npay','공인중개사','중개사','매경부동산','부동산써브','부동산뱅크','부동산렛츠','우리집부동산','피터팬','텐컴즈','산업부동산','직거래','집주인','소유자','현장','여기서부터','■','☞'];
+function isNoiseLine(s: string): boolean {
+  if (s === 'VR' || s === '아실') return true;
+  if (s.includes('이미지') && s.includes('개')) return true;
+  return _NOISE.some((k) => s.includes(k));
+}
+/** 네이버 유형라벨 → 시세 시설 라벨 정규화 */
+function normFacility(t: string): string {
+  const map: Record<string, string> = { '빌라/연립': '빌라／연립', '빌라': '빌라／연립', '다세대': '빌라／연립', '공장/창고': '공장／창고', '단독주택': '단독/다가구', '다가구': '단독/다가구', '주택': '단독/다가구', '상가': '상가점포' };
+  return map[t] ?? (t || '기타');
+}
+
+/** 네이버 매물목록 원문(여러 줄) → 물건별 원문 항목 배열 */
+export function parseNaverPaste(text: string): SiseRawInput[] {
+  const lines = (text || '').replace(/\r/g, '').split('\n').map((s) => s.trim());
+  const n = lines.length;
+  const priceIdx: number[] = [];
+  for (let i = 0; i < n; i++) if (lines[i] && isPriceLine(lines[i])) priceIdx.push(i);
+
+  const items: SiseRawInput[] = [];
+  for (let p = 0; p < priceIdx.length; p++) {
+    const pi = priceIdx[p];
+    const endIdx = p < priceIdx.length - 1 ? priceIdx[p + 1] - 1 : n - 1;
+
+    // 건물명: 가격 줄 바로 위 첫 비어있지 않은 줄(노이즈/가격/유형 아니면 채택)
+    let name = '';
+    for (let r = pi - 1; r >= 0; r--) {
+      const va = lines[r];
+      if (va !== '') { if (!isNoiseLine(va) && !isPriceLine(va) && !isBuildingType(va)) name = va; break; }
+    }
+    const price = lines[pi];
+    let bldType = '', apvd = '', area = '', fl = '', direc = '', feat = '';
+    let gotArea = false;
+    for (let r = pi + 1; r <= endIdx; r++) {
+      const v = lines[r];
+      if (v === '') continue;
+      if (!gotArea) {
+        if (isNoiseLine(v)) continue;
+        else if (isBuildingType(v) && bldType === '') bldType = v;
+        else if (isYearInfo(v) && apvd === '') apvd = extractApprovalDate(v);
+        else if (v.includes('㎡') && area === '') { area = v; gotArea = true; }
+      } else {
+        if (isFloorLine(v) && fl === '') fl = v;
+        else if (isDirectionLine(v) && direc === '') direc = v;
+        else if (!isNoiseLine(v) && !isPriceLine(v)) feat = feat ? feat + ' ' + v : v;
+      }
+    }
+    if (area === '') continue;
+    let areaFL = area;
+    if (fl) areaFL += ' ' + fl;
+    if (direc) areaFL += ' ' + direc;
+    items.push({ facility: normFacility(bldType), approvalDate: apvd, name, amountText: price, areaText: areaFL });
+  }
+  return items;
+}
