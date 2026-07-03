@@ -1,0 +1,12 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { --bg: #f7f8fa; }
+body { background: var(--bg); color: #1a1a1a; }
+
+/* A4 세로 보고서 프리셋 (내보내기용) */
+@media print {
+  @page { size: A4 portrait; margin: 12mm; }
+  .no-print { display: none !important; }
+}

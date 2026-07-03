@@ -1,0 +1,166 @@
+{
+  "source": "20260630 주변가격검토(영등포동8가51-3)_지역분석.xlsm",
+  "constants": {
+    "capRate": 0.07,
+    "depositYield": 0.035,
+    "pyeong_supply": 0.3025,
+    "pyeong_excl": 0.3026,
+    "pyeong_factor": 3.3058
+  },
+  "cases": [
+    {
+      "id": "오피스텔_실거래_매매",
+      "facility": "오피스텔",
+      "formula_ppa": "amt_manwon/excl_m2*3.3058*10",
+      "rows": [
+        {
+          "row": 8,
+          "gubun": "오피스텔",
+          "name": "한양아이클래스 오피스텔",
+          "amt_manwon": 12800,
+          "excl_m2": 19.86,
+          "buildYear": 2014
+        },
+        {
+          "row": 9,
+          "gubun": "오피스텔",
+          "name": "메이준",
+          "amt_manwon": 9800,
+          "excl_m2": 17.44,
+          "buildYear": 2012
+        },
+        {
+          "row": 10,
+          "gubun": "오피스텔",
+          "name": "한양아이클래스 오피스텔",
+          "amt_manwon": 13000,
+          "excl_m2": 20.16,
+          "buildYear": 2014
+        },
+        {
+          "row": 11,
+          "gubun": "오피스텔",
+          "name": "메이준",
+          "amt_manwon": 9900,
+          "excl_m2": 17.44,
+          "buildYear": 2012
+        },
+        {
+          "row": 12,
+          "gubun": "오피스텔",
+          "name": "한양아이클래스 오피스텔",
+          "amt_manwon": 13500,
+          "excl_m2": 19.86,
+          "buildYear": 2014
+        },
+        {
+          "row": 13,
+          "gubun": "오피스텔",
+          "name": "당산역 리버리치 오피스텔",
+          "amt_manwon": 42000,
+          "excl_m2": 39.98,
+          "buildYear": 2016
+        },
+        {
+          "row": 14,
+          "gubun": "오피스텔",
+          "name": "한양아이클래스 오피스텔",
+          "amt_manwon": 14000,
+          "excl_m2": 19.86,
+          "buildYear": 2014
+        },
+        {
+          "row": 15,
+          "gubun": "오피스텔",
+          "name": "한양아이클래스 오피스텔",
+          "amt_manwon": 12600,
+          "excl_m2": 19.86,
+          "buildYear": 2014
+        },
+        {
+          "row": 16,
+          "gubun": "오피스텔",
+          "name": "당산역 리버리치 오피스텔",
+          "amt_manwon": 36500,
+          "excl_m2": 39.98,
+          "buildYear": 2016
+        },
+        {
+          "row": 17,
+          "gubun": "오피스텔",
+          "name": "당산역 리버리치 오피스텔",
+          "amt_manwon": 24000,
+          "excl_m2": 30.91,
+          "buildYear": 2016
+        },
+        {
+          "row": 18,
+          "gubun": "오피스텔",
+          "name": "당산역 리버리치 오피스텔",
+          "amt_manwon": 42800,
+          "excl_m2": 39.98,
+          "buildYear": 2016
+        },
+        {
+          "row": 19,
+          "gubun": "오피스텔",
+          "name": "한양아이클래스 오피스텔",
+          "amt_manwon": 15350,
+          "excl_m2": 19.91,
+          "buildYear": 2014
+        },
+        {
+          "row": 20,
+          "gubun": "오피스텔",
+          "name": "한양아이클래스 오피스텔",
+          "amt_manwon": 13000,
+          "excl_m2": 17.3,
+          "buildYear": 2014
+        },
+        {
+          "row": 21,
+          "gubun": "오피스텔",
+          "name": "당산역 리버리치 오피스텔",
+          "amt_manwon": 18000,
+          "excl_m2": 22.9,
+          "buildYear": 2016
+        }
+      ],
+      "expected": {
+        "mean": 24928.044535044148,
+        "top10pct": 35059.00950475238,
+        "top30pct": 31570.747103901296,
+        "top50pct": 28896.967862212343
+      },
+      "excel_cached": {
+        "P8": 24928.044535044148,
+        "Q8": 35059.00950475238,
+        "R8": 31570.747103901296,
+        "S8": 28896.967862212343,
+        "O8_recent10y": 30390.159637181216
+      }
+    },
+    {
+      "id": "토지_실거래_매매",
+      "facility": "토지",
+      "formula_ppa": "amt_manwon/area_m2*3.3058*10",
+      "rows": [
+        {
+          "row": 8,
+          "addr": "영등포구 영등포동8가",
+          "amt_manwon": 100,
+          "area_m2": 2.47,
+          "ppa": 1338.3805668016194
+        },
+        {
+          "row": 9,
+          "addr": "영등포구 영등포동8가",
+          "amt_manwon": 100,
+          "area_m2": 2.47,
+          "ppa": 1338.3805668016194
+        }
+      ],
+      "expected_mean_excel": 1338.3805668016194
+    }
+  ]
+}
