@@ -84,3 +84,46 @@ export function computeSiseRow(r: SiseRow, cfg: AnalysisConfig): SiseComputed {
       r.deal === '전세' && supplyPyeong ? r.amountCheonwon / supplyPyeong : 0,
   };
 }
+
+/** 시세 입력 1행 원문 (붙여넣기/수기) */
+export interface SiseRawInput {
+  facility: string;
+  approvalDate?: string;
+  name?: string;
+  amountText: string;      // "매매 5억" | "전세 3억" | "월세 3000/50"(보증금/월세)
+  areaText: string;        // "전용59.8㎡ 3/15층" 등
+}
+
+export interface SiseParsed {
+  row: SiseRow;
+  ppa: SiseComputed;
+  errors: string[];
+}
+
+/** 원문 → SiseRow 파싱 + 평당가 계산 (DB전처리 §1-1 로직) */
+export function parseSiseRaw(inp: SiseRawInput, cfg: AnalysisConfig): SiseParsed {
+  const errors: string[] = [];
+  const deal = parseDealType(inp.amountText);
+  if (!deal) errors.push('거래방식');
+
+  const body = (inp.amountText || '').replace(/ /g, '').replace(/^(매매|전세|월세)/, '');
+  const [amtPart, monthlyPart] = body.split('/');
+  const amt = amtPart ? amountToCheonwon(amtPart) : '';
+  if (amt === '') errors.push('금액');
+  const monthly = monthlyPart ? parseFloat(monthlyPart.replace(/,/g, '')) * 10 : undefined;
+
+  const a = parseAreas(inp.areaText);
+  if (!a.excl && !a.supply && !a.daeji && !a.yeon) errors.push('면적');
+
+  const row: SiseRow = {
+    facility: inp.facility,
+    deal: (deal || '매매') as DealType,
+    amountCheonwon: typeof amt === 'number' ? amt : 0,
+    monthlyRentCheonwon: monthly,
+    supplyM2: a.supply,
+    exclM2: a.excl,
+    daejiM2: a.daeji,
+    yeonM2: a.yeon,
+  };
+  return { row, ppa: computeSiseRow(row, cfg), errors };
+}
