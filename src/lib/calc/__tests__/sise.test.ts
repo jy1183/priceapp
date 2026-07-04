@@ -68,3 +68,18 @@ describe('네이버 붙여넣기 파서 (anchor=가격줄)', () => {
     expect(items[0].areaText).not.toContain('확인매물');
   });
 });
+
+describe('네이버 파서 — 유형이 면적 줄 앞에 붙는 실제 형식', () => {
+  const paste = [
+    '펠리시티 1동', '매매 5억 7,500', '아파트66B㎡ (전용55B)4/14층',
+    '삼흥리치(주상복합)', '매매 5억 6,000', '아파트69㎡ (전용59)8/15층',
+  ].join('\n');
+  it('시설=아파트 추출, 면적에서 유형 제거', () => {
+    const items = parseNaverPaste(paste);
+    expect(items).toHaveLength(2);
+    expect(items[0].facility).toBe('아파트');
+    expect(items[0].areaText.startsWith('아파트')).toBe(false);
+    expect(items[0].areaText).toContain('전용55');
+    expect(items[1].facility).toBe('아파트');
+  });
+});

@@ -185,7 +185,15 @@ export function parseNaverPaste(text: string): SiseRawInput[] {
         if (isNoiseLine(v)) continue;
         else if (isBuildingType(v) && bldType === '') bldType = v;
         else if (isYearInfo(v) && apvd === '') apvd = extractApprovalDate(v);
-        else if (v.includes('㎡') && area === '') { area = v; gotArea = true; }
+        else if (v.includes('㎡') && area === '') {
+          // 유형이 면적 줄 앞에 붙는 경우("아파트66㎡ (전용55)4/14층") 접두어 분리
+          let a = v;
+          if (bldType === '') {
+            const bt = _BLD_TYPES.find((t) => a.startsWith(t));
+            if (bt) { bldType = bt; a = a.slice(bt.length).trim(); }
+          }
+          area = a; gotArea = true;
+        }
       } else {
         if (isFloorLine(v) && fl === '') fl = v;
         else if (isDirectionLine(v) && direc === '') direc = v;
