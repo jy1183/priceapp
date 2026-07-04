@@ -1,11 +1,10 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { parseSiseRaw, parseNaverPaste, type SiseRawInput } from '@/lib/calc/sise';
 import { aggregate } from '@/lib/calc/aggregate';
 import { DEFAULT_CONFIG, SISE_FACILITIES } from '@/lib/calc/constants';
-import { useStore } from '@/lib/store';
+import { useStore, type SiseInputRow } from '@/lib/store';
 
-interface Row extends SiseRawInput { id: number }
 let _id = 1;
 
 const SAMPLE = [
@@ -35,13 +34,17 @@ const SAMPLE = [
 ].join('\n');
 
 export default function SisePage() {
-  const [rows, setRows] = useState<Row[]>([]);
-  const [paste, setPaste] = useState('');
-  const [confirmed, setConfirmed] = useState(false);
+  const rows = useStore((st) => st.siseInput);
+  const setRows = useStore((st) => st.setSiseInput);
+  const paste = useStore((st) => st.sisePaste);
+  const setPaste = useStore((st) => st.setSisePaste);
+  const confirmed = useStore((st) => st.siseConfirmed);
+  const setConfirmed = useStore((st) => st.setSiseConfirmed);
+  const resetSise = useStore((st) => st.resetSise);
   const setSise = useStore((st) => st.setSise);
 
   function doParse(text: string) {
-    const parsed: Row[] = parseNaverPaste(text).map((it) => ({ id: _id++, ...it }));
+    const parsed: SiseInputRow[] = parseNaverPaste(text).map((it) => ({ id: _id++, ...it }));
     setRows(parsed); setConfirmed(false);
   }
 
@@ -52,7 +55,7 @@ export default function SisePage() {
   const errorCount = results.filter((x) => x.p.errors.length > 0).length;
 
   function edit(id: number, field: keyof SiseRawInput, v: string) {
-    setRows((rs) => rs.map((r) => (r.id === id ? { ...r, [field]: v } : r)));
+    setRows(rows.map((r) => (r.id === id ? { ...r, [field]: v } : r)));
   }
 
   // 확정 후 시설별 집계 (전용 기준 평당가)
@@ -95,6 +98,8 @@ export default function SisePage() {
             }} disabled={errorCount > 0}
             className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50">
             {errorCount > 0 ? `오류 ${errorCount}행 수정 필요` : '확정 → 분석 반영'}</button>}
+          {rows.length > 0 && <button onClick={() => { if (confirm('파싱한 데이터를 모두 지웁니다. 계속할까요?')) resetSise(); }}
+            className="rounded-md border border-red-300 px-4 py-2 text-sm text-red-600 hover:bg-red-50">초기화</button>}
         </div>
       </div>
 

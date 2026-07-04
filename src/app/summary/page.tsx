@@ -1,24 +1,17 @@
 'use client';
 import { useMemo } from 'react';
 import { useStore } from '@/lib/store';
-import { aggregate } from '@/lib/calc/aggregate';
+import { buildSummaryRows } from '@/lib/summary';
+import ExportBar from '@/components/ExportBar';
 
 /** 가격검토종합 — 시세(전용) vs 실거래(전용) 시설별 평당가 비교 (엑셀 '가격검토종합' 대응) */
 export default function SummaryPage() {
   const { sise, tx, config, txMeta } = useStore();
 
-  const rows = useMemo(() => {
-    const facs = new Set<string>([...sise.map((s) => s.facility), ...tx.map((t) => t.facility)]);
-    const pct = config.topPercentiles;
-    return [...facs].map((f) => {
-      const siseVals = sise.filter((s) => s.facility === f && s.deal === '매매' && s.ppaExcl != null).map((s) => s.ppaExcl!) as number[];
-      const txVals = tx.filter((t) => t.facility === f && t.trade === '매매' && t.ppa != null).map((t) => t.ppa!) as number[];
-      const sa = aggregate(siseVals, pct);
-      const ta = aggregate(txVals, pct);
-      const gap = Number.isFinite(sa.avg) && Number.isFinite(ta.avg) && ta.avg ? (sa.avg / ta.avg - 1) * 100 : NaN;
-      return { f, sa, ta, gap };
-    }).filter((r) => r.sa.count > 0 || r.ta.count > 0);
-  }, [sise, tx, config]);
+  const rows = useMemo(
+    () => buildSummaryRows(sise, tx, config).map((r) => ({ f: r.facility, sa: r.sise, ta: r.tx, gap: r.gap })),
+    [sise, tx, config],
+  );
 
   const fmt = (v: number) => (Number.isFinite(v) ? Math.round(v).toLocaleString() : '-');
 
@@ -28,6 +21,8 @@ export default function SummaryPage() {
       <p className="mb-4 text-sm text-gray-600">
         시세 분석(확정)과 실거래 조회 결과를 시설별 전용 평당가(매매 기준)로 비교합니다. 단위 천원/평.
       </p>
+
+      <ExportBar />
 
       {rows.length === 0 ? (
         <div className="rounded border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-800">

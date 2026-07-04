@@ -37,6 +37,7 @@ export default function TxCharts({ rows }: { rows: TxRecord[] }) {
   const opt1 = {
     title: { text: '준공연도별 평균 평당가(천원/평)', left: 'center', textStyle: { fontSize: 13 } },
     tooltip: { trigger: 'axis' },
+    toolbox: { right: 10, feature: { saveAsImage: { title: '이미지' } } },
     grid: { left: 60, right: 20, top: 40, bottom: 40 },
     xAxis: { type: 'category', data: byBuild.years, name: '준공연도' },
     yAxis: { type: 'value' },
@@ -45,6 +46,7 @@ export default function TxCharts({ rows }: { rows: TxRecord[] }) {
   const opt2 = {
     title: { text: '거래연도별 거래건수', left: 'center', textStyle: { fontSize: 13 } },
     tooltip: { trigger: 'axis' },
+    toolbox: { right: 10, feature: { saveAsImage: { title: '이미지' } } },
     grid: { left: 50, right: 20, top: 40, bottom: 40 },
     xAxis: { type: 'category', data: byDealYear.years, name: '거래연도' },
     yAxis: { type: 'value', minInterval: 1 },

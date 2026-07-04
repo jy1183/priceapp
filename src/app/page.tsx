@@ -7,13 +7,14 @@ export default function Home() {
         시세 입력 → 실거래 조회 → 분석 → 종합 검토 → 지역분석 → 보고서 내보내기까지 한 흐름으로 제공합니다.
       </p>
       <div className="rounded-lg border bg-white p-5">
-        <h2 className="mb-3 font-semibold">개발 진행 상태 (Phase 0)</h2>
+        <h2 className="mb-3 font-semibold">개발 진행 상태 (Phase 0~5)</h2>
         <ul className="space-y-1 text-sm text-gray-700">
           <li>✅ 계산 엔진 이식 + 골든 데이터셋 검증(0 오차)</li>
           <li>✅ 국토부 실거래가 API 프록시 (/api/molit)</li>
           <li>✅ 분석환경설정 골격 (자본환원율·보증금운영수익률 등)</li>
-          <li>⬜ Supabase 프로젝트 저장/불러오기</li>
-          <li>⬜ 각 분석 화면 · 차트 · 내보내기</li>
+          <li>✅ 시세 입력·분석(네이버 파서) / 실거래 조회·분석(지역선택·차트)</li>
+          <li>✅ 종합 검토 · 검증 리포트 · 프로젝트 저장/불러오기</li>
+          <li>✅ 지역분석(부동산원 가격지수) · 보고서 내보내기(엑셀·PDF·Word·PPT)</li>
         </ul>
       </div>
     </div>
