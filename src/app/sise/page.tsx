@@ -137,6 +137,11 @@ export default function SisePage() {
         </div>
       )}
 
+      {confirmed && (
+        <div className="mb-4 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">
+          ✓ 확정되었습니다 — <b>④ 시세 분석</b>·<b>⑤ 종합 검토</b>에 반영됩니다. (무오류 {results.filter((x)=>x.p.errors.length===0).length}건)
+        </div>
+      )}
       {confirmed && agg.length > 0 && (
         <div>
           <h2 className="mb-2 font-semibold">시세 분석 — 시설별 평당가(전용 기준, 천원/평)</h2>

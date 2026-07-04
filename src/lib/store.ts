@@ -2,6 +2,7 @@
  * 화면 간 공유 상태 (Zustand) — 시세·실거래 결과를 종합/검증 화면에서 참조
  */
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { DEFAULT_CONFIG, type AnalysisConfig } from '@/lib/calc/constants';
 import type { TxRecord } from '@/lib/normalize';
 import type { SiseRawInput } from '@/lib/calc/sise';
@@ -39,7 +40,9 @@ interface AppState {
   loadSnapshot: (s: Partial<AppState>) => void;
 }
 
-export const useStore = create<AppState>((set) => ({
+export const useStore = create<AppState>()(
+  persist(
+    (set) => ({
   projectName: '무제 검토',
   config: DEFAULT_CONFIG,
   sise: [],
@@ -58,4 +61,17 @@ export const useStore = create<AppState>((set) => ({
   resetSise: () => set({ siseInput: [], sisePaste: '', siseConfirmed: false, sise: [], siseMeta: { parsedCount: 0, errorCount: 0 } }),
   setTx: (tx, txMeta) => set({ tx, txMeta }),
   loadSnapshot: (s) => set(s),
-}));
+    }),
+    {
+      name: 'priceapp-store',
+      storage: createJSONStorage(() => (typeof window !== 'undefined' ? window.localStorage : undefined as any)),
+      skipHydration: true, // SSR 불일치 방지 — 클라이언트 마운트 후 수동 rehydrate
+      partialize: (st) => ({
+        projectName: st.projectName, config: st.config,
+        sise: st.sise, siseMeta: st.siseMeta,
+        siseInput: st.siseInput, sisePaste: st.sisePaste, siseConfirmed: st.siseConfirmed,
+        tx: st.tx, txMeta: st.txMeta,
+      }),
+    },
+  ),
+);

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import Link from 'next/link';
 import ProjectBar from '@/components/ProjectBar';
+import StoreHydrator from '@/components/StoreHydrator';
 
 export const metadata: Metadata = {
   title: '주변 가격 분석',
@@ -24,6 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ko">
       <body>
+        <StoreHydrator />
         <div className="flex min-h-screen">
           <aside className="no-print w-56 shrink-0 border-r bg-white px-3 py-4">
             <div className="mb-4 px-2 text-lg font-bold">주변 가격 분석</div>
