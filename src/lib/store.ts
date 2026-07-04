@@ -29,6 +29,7 @@ interface AppState {
   siseConfirmed: boolean;
   tx: TxRecord[];
   txMeta: TxMeta | null;
+  txForm: { sido: string; lawdCd: string; dong: string; facility: string; trade: string; from: string; to: string; period: string };
   setProjectName: (v: string) => void;
   setConfig: (c: AnalysisConfig) => void;
   setSise: (rows: SiseResult[], meta: SiseMeta) => void;
@@ -37,6 +38,7 @@ interface AppState {
   setSiseConfirmed: (v: boolean) => void;
   resetSise: () => void;
   setTx: (rows: TxRecord[], meta: TxMeta) => void;
+  setTxForm: (f: Partial<AppState['txForm']>) => void;
   loadSnapshot: (s: Partial<AppState>) => void;
 }
 
@@ -52,6 +54,7 @@ export const useStore = create<AppState>()(
   siseConfirmed: false,
   tx: [],
   txMeta: null,
+  txForm: { sido: '서울특별시', lawdCd: '11560', dong: '영등포동8가', facility: '오피스텔', trade: '매매', from: '202501', to: '202506', period: 'all' },
   setProjectName: (v) => set({ projectName: v }),
   setConfig: (config) => set({ config }),
   setSise: (sise, siseMeta) => set({ sise, siseMeta }),
@@ -60,6 +63,7 @@ export const useStore = create<AppState>()(
   setSiseConfirmed: (siseConfirmed) => set({ siseConfirmed }),
   resetSise: () => set({ siseInput: [], sisePaste: '', siseConfirmed: false, sise: [], siseMeta: { parsedCount: 0, errorCount: 0 } }),
   setTx: (tx, txMeta) => set({ tx, txMeta }),
+  setTxForm: (f) => set((st) => ({ txForm: { ...st.txForm, ...f } })),
   loadSnapshot: (s) => set(s),
     }),
     {
@@ -70,7 +74,7 @@ export const useStore = create<AppState>()(
         projectName: st.projectName, config: st.config,
         sise: st.sise, siseMeta: st.siseMeta,
         siseInput: st.siseInput, sisePaste: st.sisePaste, siseConfirmed: st.siseConfirmed,
-        tx: st.tx, txMeta: st.txMeta,
+        tx: st.tx, txMeta: st.txMeta, txForm: st.txForm,
       }),
     },
   ),

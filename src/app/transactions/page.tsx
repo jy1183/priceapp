@@ -28,19 +28,25 @@ function monthsBetween(from: string, to: string): string[] {
 }
 
 export default function TransactionsPage() {
-  const [region, setRegion] = useState<RegionValue>({ sido: '서울특별시', lawdCd: '11560', dong: '영등포동8가' });
-  const [facility, setFacility] = useState<Facility>('오피스텔');
-  const [trade, setTrade] = useState<Trade>('매매');
-  const [from, setFrom] = useState('202501');
-  const [to, setTo] = useState('202506');
-  const [period, setPeriod] = useState<string>('all');
-  const [rows, setRows] = useState<TxRecord[]>([]);
+  const txForm = useStore((st) => st.txForm);
+  const setTxForm = useStore((st) => st.setTxForm);
+  const rows = useStore((st) => st.tx);            // 표시 소스 = 스토어(유지)
+  const setTxStore = useStore((st) => st.setTx);
+  const region: RegionValue = { sido: txForm.sido, lawdCd: txForm.lawdCd, dong: txForm.dong };
+  const setRegion = (r: RegionValue) => setTxForm({ sido: r.sido, lawdCd: r.lawdCd, dong: r.dong });
+  const facility = txForm.facility as Facility;
+  const setFacility = (v: Facility) => setTxForm({ facility: v });
+  const trade = txForm.trade as Trade;
+  const setTrade = (v: Trade) => setTxForm({ trade: v });
+  const from = txForm.from, to = txForm.to, period = txForm.period;
+  const setFrom = (v: string) => setTxForm({ from: v });
+  const setTo = (v: string) => setTxForm({ to: v });
+  const setPeriod = (v: string) => setTxForm({ period: v });
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
-  const setTxStore = useStore((st) => st.setTx);
 
   async function query() {
-    setLoading(true); setErr(''); setRows([]);
+    setLoading(true); setErr('');
     try {
       const months = monthsBetween(from, to);
       const all: TxRecord[] = [];
@@ -51,7 +57,6 @@ export default function TransactionsPage() {
         if (j.error) throw new Error(j.error);
         for (const it of j.items ?? []) all.push(normalize(facility, trade, it));
       }
-      setRows(all);
       setTxStore(all, { facility, trade, region: `${region.sido} ${region.dong}`.trim(), from, to });
       if (all.length === 0) setErr('조회 결과가 없습니다. 기간·지역을 조정해 보세요.');
     } catch (e) { setErr(String(e)); }
