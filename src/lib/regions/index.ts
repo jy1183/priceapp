@@ -11,3 +11,7 @@ export function sigunguOf(sido: string): Sigungu[] {
 export function dongsOf(sido: string, code: string): string[] {
   return (BY_SIDO[sido] ?? []).find((s) => s.code === code)?.dongs ?? [];
 }
+/** 시도+법정동(시군구 5자리)코드 → 시군구명 (예: 서울특별시,11560 → 영등포구) */
+export function sigunguName(sido: string, code: string): string {
+  return (BY_SIDO[sido] ?? []).find((s) => s.code === code)?.sigungu ?? '';
+}

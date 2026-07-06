@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
       const doc = parser.parse(await (await fetch(url, { next: { revalidate } })).text());
       const items = rows(doc)
         .filter((x) => String(x.ITM_TAG ?? '').includes('분류'))
-        .map((x) => ({ clsId: String(x.ITM_ID), name: String(x.ITM_NM || x.ITM_FULLNM), par: String(x.PAR_ITM_ID) }));
+        .map((x) => ({ clsId: String(x.ITM_ID), name: String(x.ITM_NM || x.ITM_FULLNM), fullNm: String(x.ITM_FULLNM || x.ITM_NM), par: String(x.PAR_ITM_ID) }));
       return NextResponse.json({ items });
     }
     const cycle = sp.get('cycle') ?? 'MM';
