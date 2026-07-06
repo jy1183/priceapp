@@ -56,9 +56,13 @@ export interface SiseRow {
 export interface SiseComputed extends SiseRow {
   supplyPyeong?: number;
   exclPyeong?: number;
+  daejiPyeong?: number;
+  yeonPyeong?: number;
   convertedSale: number;   // 환산매매가 (천원)
   ppaSupply?: number;      // 평당가 공급/계약 기준
   ppaExcl?: number;        // 평당가 전용 기준
+  ppaDaeji?: number;       // 평당가 대지 기준 (§1-2 X)
+  ppaYeon?: number;        // 평당가 연면적 기준 (§1-2 Y)
   jeonseDepositPerPyeong?: number;
 }
 
@@ -66,6 +70,8 @@ export interface SiseComputed extends SiseRow {
 export function computeSiseRow(r: SiseRow, cfg: AnalysisConfig): SiseComputed {
   const supplyPyeong = r.supplyM2 ? r.supplyM2 * PYEONG : undefined;
   const exclPyeong = r.exclM2 ? r.exclM2 * PYEONG : undefined;
+  const daejiPyeong = r.daejiM2 ? r.daejiM2 * PYEONG : undefined;
+  const yeonPyeong = r.yeonM2 ? r.yeonM2 * PYEONG : undefined;
   const yearRent = r.deal === '월세' ? (r.monthlyRentCheonwon ?? 0) * 12 : 0;
 
   let convertedSale = 0;
@@ -77,12 +83,35 @@ export function computeSiseRow(r: SiseRow, cfg: AnalysisConfig): SiseComputed {
     ...r,
     supplyPyeong,
     exclPyeong,
+    daejiPyeong,
+    yeonPyeong,
     convertedSale,
     ppaSupply: supplyPyeong ? convertedSale / supplyPyeong : undefined,
     ppaExcl: exclPyeong ? convertedSale / exclPyeong : undefined,
+    ppaDaeji: daejiPyeong ? convertedSale / daejiPyeong : undefined,
+    ppaYeon: yeonPyeong ? convertedSale / yeonPyeong : undefined,
     jeonseDepositPerPyeong:
       r.deal === '전세' && supplyPyeong ? r.amountCheonwon / supplyPyeong : 0,
   };
+}
+
+/** 시설별 대표 평당가 기준 선택 (명세 §1-2/§2-1: 단독·상가주택=대지, 상가건물=연면적, 그 외=전용→공급) */
+const _DAEJI_FACILITIES = ['단독/다가구', '전원주택', '상가주택', '토지'];
+const _YEON_FACILITIES = ['상가건물'];
+export function siseRepPpa(facility: string, c: SiseComputed): { value?: number; basis: '전용' | '공급' | '대지' | '연면적' | '-' } {
+  if (_DAEJI_FACILITIES.includes(facility)) {
+    if (c.ppaDaeji != null) return { value: c.ppaDaeji, basis: '대지' };
+    if (c.ppaYeon != null) return { value: c.ppaYeon, basis: '연면적' };
+  }
+  if (_YEON_FACILITIES.includes(facility)) {
+    if (c.ppaYeon != null) return { value: c.ppaYeon, basis: '연면적' };
+    if (c.ppaDaeji != null) return { value: c.ppaDaeji, basis: '대지' };
+  }
+  if (c.ppaExcl != null) return { value: c.ppaExcl, basis: '전용' };
+  if (c.ppaSupply != null) return { value: c.ppaSupply, basis: '공급' };
+  if (c.ppaDaeji != null) return { value: c.ppaDaeji, basis: '대지' };
+  if (c.ppaYeon != null) return { value: c.ppaYeon, basis: '연면적' };
+  return { basis: '-' };
 }
 
 /** 시세 입력 1행 원문 (붙여넣기/수기) */
@@ -106,7 +135,8 @@ export function parseSiseRaw(inp: SiseRawInput, cfg: AnalysisConfig): SiseParsed
   const deal = parseDealType(inp.amountText);
   if (!deal) errors.push('거래방식');
 
-  const body = (inp.amountText || '').replace(/ /g, '').replace(/^(매매|전세|월세)/, '');
+  // 금액 전처리: 공백 제거 → 거래방식 제거 → 범위("66억~70억")는 하한만 취함(명세 §1-1)
+  const body = (inp.amountText || '').replace(/ /g, '').replace(/^(매매|전세|월세)/, '').split('~')[0];
   const [amtPart, monthlyPart] = body.split('/');
   const amt = amtPart ? amountToCheonwon(amtPart) : '';
   if (amt === '') errors.push('금액');
@@ -179,21 +209,20 @@ export function parseNaverPaste(text: string): SiseRawInput[] {
     let bldType = '', apvd = '', area = '', fl = '', direc = '', feat = '';
     let gotArea = false;
     for (let r = pi + 1; r <= endIdx; r++) {
-      const v = lines[r];
+      let v = lines[r];
       if (v === '') continue;
       if (!gotArea) {
         if (isNoiseLine(v)) continue;
-        else if (isBuildingType(v) && bldType === '') bldType = v;
-        else if (isYearInfo(v) && apvd === '') apvd = extractApprovalDate(v);
-        else if (v.includes('㎡') && area === '') {
-          // 유형이 면적 줄 앞에 붙는 경우("아파트66㎡ (전용55)4/14층") 접두어 분리
-          let a = v;
-          if (bldType === '') {
-            const bt = _BLD_TYPES.find((t) => a.startsWith(t));
-            if (bt) { bldType = bt; a = a.slice(bt.length).trim(); }
-          }
-          area = a; gotArea = true;
+        // 건물유형: 단독 줄("오피스텔") 또는 결합 줄 접두어("단독/다가구1993.07…대지…㎡")
+        if (bldType === '') {
+          if (isBuildingType(v)) { bldType = v; continue; }
+          // 결합 줄(면적/년차가 붙어있는 경우)만 접두어 분리 — 일반 설명줄 오인 방지
+          const bt = _BLD_TYPES.find((t) => v.startsWith(t));
+          if (bt && (v.includes('㎡') || v.includes('년차'))) { bldType = bt; v = v.slice(bt.length).trim(); }
         }
+        // 아래 두 블록은 배타(else if)가 아님 — 한 줄에 년차와 면적이 함께 올 수 있음(단독/다가구)
+        if (isYearInfo(v) && apvd === '') apvd = extractApprovalDate(v);
+        if (v.includes('㎡') && area === '') { area = v; gotArea = true; }
       } else {
         if (isFloorLine(v) && fl === '') fl = v;
         else if (isDirectionLine(v) && direc === '') direc = v;

@@ -12,7 +12,8 @@ export interface SiseResult {
   facility: string;
   deal: '매매' | '전세' | '월세';
   ppaSupply: number | null;  // 공급/계약 기준 평당가
-  ppaExcl: number | null;    // 전용 기준 평당가
+  ppaExcl: number | null;    // 전용 기준 평당가 (단독·상가주택 등은 대지 대표값)
+  ppaYeon: number | null;    // 연면적 기준 평당가 (소스에 연면적이 있을 때)
 }
 
 export interface SiseInputRow extends SiseRawInput { id: number }

@@ -16,7 +16,13 @@ export default function SiseAnalysisPage() {
     return [...facs].map((f) => {
       const excl = sise.filter((s) => s.facility === f && s.ppaExcl != null).map((s) => s.ppaExcl!) as number[];
       const supply = sise.filter((s) => s.facility === f && s.ppaSupply != null).map((s) => s.ppaSupply!) as number[];
-      return { f, excl: aggregate(excl, pct), supplyAvg: supply.length ? supply.reduce((a, b) => a + b, 0) / supply.length : NaN };
+      const yeon = sise.filter((s) => s.facility === f && s.ppaYeon != null).map((s) => s.ppaYeon!) as number[];
+      return {
+        f,
+        excl: aggregate(excl, pct),
+        yeon: aggregate(yeon, pct),
+        supplyAvg: supply.length ? supply.reduce((a, b) => a + b, 0) / supply.length : NaN,
+      };
     }).filter((r) => r.excl.count > 0);
   }, [sise, config]);
 
@@ -44,7 +50,7 @@ export default function SiseAnalysisPage() {
     <div className="max-w-5xl">
       <h1 className="mb-1 text-2xl font-bold">시세 분석</h1>
       <p className="mb-4 text-sm text-gray-600">
-        <b>① 시세 입력</b>에서 파싱·확정한 시세를 시설별 전용 평당가로 집계합니다. 단위 천원/평.
+        <b>① 시세 입력</b>에서 파싱·확정한 시세를 시설별 평당가로 집계합니다. 단독·상가주택 등은 대지 기준이며, 소스에 연면적이 있으면 연면적 기준도 함께 표시합니다. 단위 천원/평.
       </p>
 
       {rows.length === 0 ? (
@@ -58,9 +64,13 @@ export default function SiseAnalysisPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-left text-gray-600">
                 <tr>
-                  <th className="px-3 py-2">시설</th><th className="px-3 py-2">건수</th>
-                  <th className="px-3 py-2">전용 평균</th><th className="px-3 py-2">상위10%</th><th className="px-3 py-2">상위30%</th><th className="px-3 py-2">상위50%</th>
-                  <th className="px-3 py-2">공급 평균</th>
+                  <th className="px-3 py-2" rowSpan={2}>시설</th>
+                  <th className="px-3 py-2 text-center" colSpan={6}>전용/대지 기준</th>
+                  <th className="px-3 py-2 text-center" colSpan={5}>연면적 기준</th>
+                </tr>
+                <tr>
+                  <th className="px-3 py-2">건수</th><th className="px-3 py-2">평균</th><th className="px-3 py-2">상위10%</th><th className="px-3 py-2">상위30%</th><th className="px-3 py-2">상위50%</th><th className="px-3 py-2">공급 평균</th>
+                  <th className="px-3 py-2">건수</th><th className="px-3 py-2">평균</th><th className="px-3 py-2">상위10%</th><th className="px-3 py-2">상위30%</th><th className="px-3 py-2">상위50%</th>
                 </tr>
               </thead>
               <tbody>
@@ -73,6 +83,11 @@ export default function SiseAnalysisPage() {
                     <td className="px-3 py-1.5 text-right">{fmt(r.excl.top30)}</td>
                     <td className="px-3 py-1.5 text-right">{fmt(r.excl.top50)}</td>
                     <td className="px-3 py-1.5 text-right text-gray-500">{fmt(r.supplyAvg)}</td>
+                    <td className="px-3 py-1.5 text-gray-500">{r.yeon.count || '-'}</td>
+                    <td className="px-3 py-1.5 text-right text-gray-500">{r.yeon.count ? fmt(r.yeon.avg) : '-'}</td>
+                    <td className="px-3 py-1.5 text-right text-gray-500">{r.yeon.count ? fmt(r.yeon.top10) : '-'}</td>
+                    <td className="px-3 py-1.5 text-right text-gray-500">{r.yeon.count ? fmt(r.yeon.top30) : '-'}</td>
+                    <td className="px-3 py-1.5 text-right text-gray-500">{r.yeon.count ? fmt(r.yeon.top50) : '-'}</td>
                   </tr>
                 ))}
               </tbody>

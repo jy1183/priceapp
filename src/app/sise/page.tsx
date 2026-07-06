@@ -1,6 +1,6 @@
 'use client';
 import { useMemo, useState } from 'react';
-import { parseSiseRaw, parseNaverPaste, type SiseRawInput } from '@/lib/calc/sise';
+import { parseSiseRaw, parseNaverPaste, siseRepPpa, type SiseRawInput } from '@/lib/calc/sise';
 import { aggregate } from '@/lib/calc/aggregate';
 import { DEFAULT_CONFIG, SISE_FACILITIES } from '@/lib/calc/constants';
 import { useStore, type SiseInputRow } from '@/lib/store';
@@ -67,14 +67,29 @@ export default function SisePage() {
   // 확정 후 시설별 집계 (전용 기준 평당가)
   const agg = useMemo(() => {
     const byFac = new Map<string, number[]>();
+    const byFacYeon = new Map<string, number[]>();
     results.forEach(({ r, p }) => {
-      const v = p.ppa.ppaExcl;
-      if (v != null && Number.isFinite(v) && p.errors.length === 0) {
+      if (p.errors.length !== 0) return;
+      const v = siseRepPpa(r.facility, p.ppa).value; // 시설별 대표 기준(단독=대지 등)
+      if (v != null && Number.isFinite(v)) {
         if (!byFac.has(r.facility)) byFac.set(r.facility, []);
         byFac.get(r.facility)!.push(v);
       }
+      const y = p.ppa.ppaYeon; // 연면적 기준(소스에 연면적이 있을 때만)
+      if (y != null && Number.isFinite(y)) {
+        if (!byFacYeon.has(r.facility)) byFacYeon.set(r.facility, []);
+        byFacYeon.get(r.facility)!.push(y);
+      }
     });
-    return [...byFac.entries()].map(([facility, vals]) => ({ facility, ...aggregate(vals, DEFAULT_CONFIG.topPercentiles) }));
+    return [...byFac.entries()].map(([facility, vals]) => {
+      const yv = byFacYeon.get(facility);
+      return {
+        facility,
+        ...aggregate(vals, DEFAULT_CONFIG.topPercentiles),
+        yeonCount: yv?.length ?? 0,
+        yeonAvg: yv && yv.length ? yv.reduce((a, b) => a + b, 0) / yv.length : NaN,
+      };
+    });
   }, [results]);
 
   return (
@@ -97,7 +112,10 @@ export default function SisePage() {
               setSise(
                 results.filter((x) => x.p.errors.length === 0).map((x) => ({
                   facility: x.r.facility, deal: x.p.row.deal,
-                  ppaSupply: x.p.ppa.ppaSupply ?? null, ppaExcl: x.p.ppa.ppaExcl ?? null,
+                  // 단독/토지/건물 등 전용면적이 없는 시설은 대표 기준(대지·연면적)을 평당가로 전달 → ④·⑤ 반영
+                  ppaSupply: x.p.ppa.ppaSupply ?? null,
+                  ppaExcl: x.p.ppa.ppaExcl ?? siseRepPpa(x.r.facility, x.p.ppa).value ?? null,
+                  ppaYeon: x.p.ppa.ppaYeon ?? null,
                 })),
                 { parsedCount: results.length, errorCount },
               );
@@ -123,7 +141,7 @@ export default function SisePage() {
               <tr>
                 <th className="px-2 py-2">건물명</th><th className="px-2 py-2">시설</th><th className="px-2 py-2">금액(원문)</th><th className="px-2 py-2">면적·층(원문)</th>
                 <th className="px-2 py-2">거래</th><th className="px-2 py-2">금액(천원)</th><th className="px-2 py-2">전용㎡</th>
-                <th className="px-2 py-2">평당가-공급</th><th className="px-2 py-2">평당가-전용</th><th className="px-2 py-2">비고</th>
+                <th className="px-2 py-2">평당가-공급</th><th className="px-2 py-2">평당가-전용/대지</th><th className="px-2 py-2">평당가-연면적</th><th className="px-2 py-2">비고</th>
               </tr>
             </thead>
             <tbody>
@@ -141,7 +159,15 @@ export default function SisePage() {
                   <td className="px-2 py-1">{p.row.amountCheonwon?.toLocaleString()}</td>
                   <td className="px-2 py-1">{p.row.exclM2 ?? '-'}</td>
                   <td className="px-2 py-1">{p.ppa.ppaSupply ? Math.round(p.ppa.ppaSupply).toLocaleString() : '-'}</td>
-                  <td className="px-2 py-1">{p.ppa.ppaExcl ? Math.round(p.ppa.ppaExcl).toLocaleString() : '-'}</td>
+                  <td className="px-2 py-1">
+                    {(() => {
+                      const rp = siseRepPpa(r.facility, p.ppa);
+                      return rp.value != null
+                        ? <>{Math.round(rp.value).toLocaleString()}{rp.basis !== '전용' && <em className="ml-1 not-italic text-[10px] text-gray-500">({rp.basis})</em>}</>
+                        : '-';
+                    })()}
+                  </td>
+                  <td className="px-2 py-1">{p.ppa.ppaYeon ? Math.round(p.ppa.ppaYeon).toLocaleString() : '-'}</td>
                   <td className="px-2 py-1 text-xs text-red-600">{p.errors.join(', ')}</td>
                 </tr>
               ))}
@@ -157,11 +183,19 @@ export default function SisePage() {
       )}
       {confirmed && agg.length > 0 && (
         <div>
-          <h2 className="mb-2 font-semibold">시세 분석 — 시설별 평당가(전용 기준, 천원/평)</h2>
+          <h2 className="mb-2 font-semibold">시세 분석 — 시설별 평당가(전용/대지 기준, 천원/평)</h2>
           <div className="overflow-x-auto rounded-lg border bg-white">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-left text-gray-600">
-                <tr><th className="px-3 py-2">시설</th><th className="px-3 py-2">건수</th><th className="px-3 py-2">평균</th><th className="px-3 py-2">상위10%</th><th className="px-3 py-2">상위30%</th><th className="px-3 py-2">상위50%</th></tr>
+                <tr>
+                  <th className="px-3 py-2" rowSpan={2}>시설</th>
+                  <th className="px-3 py-2 text-center" colSpan={5}>전용/대지 기준</th>
+                  <th className="px-3 py-2 text-center" colSpan={2}>연면적 기준</th>
+                </tr>
+                <tr>
+                  <th className="px-3 py-2">건수</th><th className="px-3 py-2">평균</th><th className="px-3 py-2">상위10%</th><th className="px-3 py-2">상위30%</th><th className="px-3 py-2">상위50%</th>
+                  <th className="px-3 py-2">건수</th><th className="px-3 py-2">평균</th>
+                </tr>
               </thead>
               <tbody>
                 {agg.map((a) => (
@@ -172,6 +206,8 @@ export default function SisePage() {
                     <td className="px-3 py-1.5">{Math.round(a.top10).toLocaleString()}</td>
                     <td className="px-3 py-1.5">{Math.round(a.top30).toLocaleString()}</td>
                     <td className="px-3 py-1.5">{Math.round(a.top50).toLocaleString()}</td>
+                    <td className="px-3 py-1.5 text-gray-500">{a.yeonCount || '-'}</td>
+                    <td className="px-3 py-1.5 text-gray-500">{Number.isFinite(a.yeonAvg) ? Math.round(a.yeonAvg).toLocaleString() : '-'}</td>
                   </tr>
                 ))}
               </tbody>
