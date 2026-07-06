@@ -106,6 +106,22 @@ export function facilityByAgeBucket(rows: TxRecord[], thisYear: number): BucketR
     .filter((r) => BUILD_BUCKETS.some((b) => r.cells[b.key].count > 0));
 }
 
+/** 준공연도별 평균 평당가 + 건수 (표·차트 공용) */
+export interface BuildYearRow { year: number; avg: number; count: number }
+export function avgByBuildYear(rows: TxRecord[]): BuildYearRow[] {
+  const m = new Map<number, number[]>();
+  rows.forEach((r) => {
+    if (r.buildYear != null && r.ppa != null && Number.isFinite(r.ppa)) {
+      if (!m.has(r.buildYear)) m.set(r.buildYear, []);
+      m.get(r.buildYear)!.push(r.ppa);
+    }
+  });
+  return [...m.keys()].sort((a, b) => a - b).map((y) => {
+    const a = m.get(y)!;
+    return { year: y, avg: mean(a), count: a.length };
+  });
+}
+
 /** 구간별 전체(시설 합산) 평균 — 차트용 */
 export function ageBucketOverall(rows: TxRecord[], thisYear: number): { labels: string[]; avg: number[] } {
   const withAge = rows.filter((r) => r.buildYear != null);

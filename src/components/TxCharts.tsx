@@ -31,16 +31,6 @@ export default function TxCharts({ rows, dealLabel = '매매' }: { rows: TxRecor
     };
   }, [rows]);
 
-  const byDealYear = useMemo(() => {
-    const m = new Map<string, number>();
-    rows.forEach((r) => {
-      const y = r.dealDate?.slice(0, 4);
-      if (y) m.set(y, (m.get(y) ?? 0) + 1);
-    });
-    const years = [...m.keys()].sort();
-    return { years, counts: years.map((y) => m.get(y)!) };
-  }, [rows]);
-
   const byBucket = useMemo(() => ageBucketOverall(rows, thisYear), [rows, thisYear]);
 
   const opt1 = {
@@ -51,15 +41,6 @@ export default function TxCharts({ rows, dealLabel = '매매' }: { rows: TxRecor
     xAxis: { type: 'category', data: byBuild.years, name: '준공연도' },
     yAxis: { type: 'value' },
     series: [{ type: 'bar', data: byBuild.avg, itemStyle: { color: '#2563eb' }, label: barLabel }],
-  };
-  const opt2 = {
-    title: { text: '거래연도별 거래건수', left: 'center', textStyle: { fontSize: 13 } },
-    tooltip: { trigger: 'axis' },
-    toolbox: { right: 10, feature: { saveAsImage: { title: '이미지' } } },
-    grid: { left: 50, right: 20, top: 40, bottom: 40 },
-    xAxis: { type: 'category', data: byDealYear.years, name: '거래연도' },
-    yAxis: { type: 'value', minInterval: 1 },
-    series: [{ type: 'bar', data: byDealYear.counts, itemStyle: { color: '#059669' }, label: barLabel }],
   };
   const opt3 = {
     title: { text: `준공연도 구간별 평균 평당가 (${dealLabel}, 천원/평)`, left: 'center', textStyle: { fontSize: 13 } },
@@ -78,11 +59,8 @@ export default function TxCharts({ rows, dealLabel = '매매' }: { rows: TxRecor
       <div className="rounded-lg border bg-white p-2">
         <ReactECharts option={opt1} style={{ height: 280 }} />
       </div>
-      <div className="rounded-lg border bg-white p-2">
-        <ReactECharts option={opt2} style={{ height: 280 }} />
-      </div>
       {hasBucket && (
-        <div className="rounded-lg border bg-white p-2 md:col-span-2">
+        <div className="rounded-lg border bg-white p-2">
           <ReactECharts option={opt3} style={{ height: 280 }} />
         </div>
       )}
