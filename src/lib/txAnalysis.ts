@@ -122,6 +122,44 @@ export function avgByBuildYear(rows: TxRecord[]): BuildYearRow[] {
   });
 }
 
+/** 준공연도 × 시설별 평균 평당가 (표·차트 공용) — 블록1 시설별 분해 */
+export interface BuildYearFacility {
+  years: number[];
+  facilities: string[];
+  data: Record<string, Record<number, { avg: number; count: number }>>; // data[시설][연도]
+}
+export function avgByBuildYearFacility(rows: TxRecord[]): BuildYearFacility {
+  const withY = rows.filter((r) => r.buildYear != null && r.ppa != null && Number.isFinite(r.ppa));
+  const years = [...new Set(withY.map((r) => r.buildYear!))].sort((a, b) => a - b);
+  const facilities = orderFacilities(withY.map((r) => r.facility));
+  const data: Record<string, Record<number, { avg: number; count: number }>> = {};
+  for (const f of facilities) {
+    data[f] = {};
+    for (const y of years) {
+      const v = ppaVals(withY.filter((r) => r.facility === f && r.buildYear === y));
+      if (v.length) data[f][y] = { avg: mean(v), count: v.length };
+    }
+  }
+  return { years, facilities, data };
+}
+
+/** 건물(단지)별 평균 평당가 상위 N — 시세 분석 '건물별 상위 5'와 대응 */
+export interface BuildingRow { name: string; avg: number; count: number }
+export function topBuildings(rows: TxRecord[], n = 5): BuildingRow[] {
+  const m = new Map<string, number[]>();
+  rows.forEach((r) => {
+    const nm = r.name?.trim();
+    if (r.ppa != null && Number.isFinite(r.ppa) && nm && nm !== '-') {
+      if (!m.has(nm)) m.set(nm, []);
+      m.get(nm)!.push(r.ppa);
+    }
+  });
+  return [...m.entries()]
+    .map(([name, v]) => ({ name, avg: mean(v), count: v.length }))
+    .sort((a, b) => b.avg - a.avg)
+    .slice(0, n);
+}
+
 /** 구간별 전체(시설 합산) 평균 — 차트용 */
 export function ageBucketOverall(rows: TxRecord[], thisYear: number): { labels: string[]; avg: number[] } {
   const withAge = rows.filter((r) => r.buildYear != null);

@@ -5,8 +5,12 @@ import { useStore } from '@/lib/store';
 import BarChart from '@/components/BarChart';
 import {
   DEAL_TYPES, DEAL_LABELS, BUILD_BUCKETS, type DealType,
-  filterByRecency, facilityAgg, facilityByDeal, facilityByRecency, facilityByAgeBucket, avgByBuildYear,
+  filterByRecency, facilityAgg, facilityByDeal, facilityByRecency, facilityByAgeBucket,
+  avgByBuildYearFacility, topBuildings,
 } from '@/lib/txAnalysis';
+
+/** 시설별 시리즈 색상 팔레트 */
+const FAC_COLORS = ['#1d4ed8', '#059669', '#d97706', '#7c3aed', '#dc2626', '#0891b2', '#db2777', '#65a30d'];
 
 const PERIODS = [
   { key: 'all', label: '전체' },
@@ -29,8 +33,9 @@ export default function TxAnalysisPage() {
   const filtered = useMemo(() => filterByRecency(tx, period, thisYear), [tx, period, thisYear]);
   const dealRows = useMemo(() => filtered.filter((r) => r.dealType === deal), [filtered, deal]);
 
-  const buildRows = useMemo(() => avgByBuildYear(dealRows), [dealRows]);
+  const buildFac = useMemo(() => avgByBuildYearFacility(dealRows), [dealRows]);
   const aggRows = useMemo(() => facilityAgg(dealRows, config.topPercentiles), [dealRows, config]);
+  const topBld = useMemo(() => topBuildings(dealRows, 5), [dealRows]);
   const crossRows = useMemo(() => facilityByDeal(filtered), [filtered]);
   const recencyRows = useMemo(() => facilityByRecency(dealRows, thisYear), [dealRows, thisYear]);
   const bucketRows = useMemo(() => facilityByAgeBucket(dealRows, thisYear), [dealRows, thisYear]);
@@ -74,30 +79,37 @@ export default function TxAnalysisPage() {
             {txMeta && <span className="ml-2 text-xs text-gray-400">{txMeta.region} · {filtered.length}건 · {dl} {dealRows.length}건</span>}
           </div>
 
-          {/* 1. 준공연도별 평균 평당가 (표 → 차트) */}
-          <Section title={`1. 준공연도별 평균 평당가 — ${dl}`}
-            note="선택 거래방식·준공필터 기준. 건물이 준공된 연도별 평균 평당가.">
-            {buildRows.length === 0 ? <Empty /> : (
+          {/* 1. 준공연도별 평균 평당가 — 시설별 (표 → 차트) */}
+          <Section title={`1. 준공연도별 평균 평당가 (시설별) — ${dl}`}
+            note="선택 거래방식·준공필터 기준. 행=시설, 열=준공연도. 셀 아래 작은 숫자는 건수. 데이터 없음은 '-'.">
+            {buildFac.facilities.length === 0 ? <Empty /> : (
               <>
                 <TableBox>
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 text-left text-gray-600">
-                      <tr><th className="px-3 py-2">준공연도</th><Th>평균</Th><th className="px-3 py-2 text-right">건수</th></tr>
+                      <tr><th className="px-3 py-2">시설</th>{buildFac.years.map((y) => <Th key={y}>{y}</Th>)}</tr>
                     </thead>
                     <tbody>
-                      {buildRows.map((r) => (
-                        <tr key={r.year} className="border-t">
-                          <td className="px-3 py-1.5 font-medium">{r.year}</td>
-                          <Td>{fmt(r.avg)}</Td>
-                          <td className="px-3 py-1.5 text-right text-gray-500">{r.count}</td>
+                      {buildFac.facilities.map((f) => (
+                        <tr key={f} className="border-t">
+                          <td className="px-3 py-1.5 font-medium">{f}</td>
+                          {buildFac.years.map((y) => {
+                            const c = buildFac.data[f][y];
+                            return <Td key={y}>{c ? fmt(c.avg) : '-'}
+                              {c ? <span className="ml-1 text-[10px] text-gray-400">{c.count}</span> : null}</Td>;
+                          })}
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </TableBox>
-                <BarChart title={`준공연도별 평균 평당가 (${dl}, 천원/평)`} xName="준공연도"
-                  x={buildRows.map((r) => r.year)}
-                  series={[{ name: '평균', data: buildRows.map((r) => chartVal(r.avg)), color: '#2563eb' }]} />
+                <BarChart title={`준공연도별 평균 평당가 (시설별, ${dl}, 천원/평)`} xName="준공연도"
+                  x={buildFac.years}
+                  series={buildFac.facilities.map((f, i) => ({
+                    name: f,
+                    data: buildFac.years.map((y) => (buildFac.data[f][y] ? chartVal(buildFac.data[f][y].avg) : null)),
+                    color: FAC_COLORS[i % FAC_COLORS.length],
+                  }))} />
               </>
             )}
           </Section>
@@ -135,8 +147,37 @@ export default function TxAnalysisPage() {
             )}
           </Section>
 
-          {/* 3. 시설별 × 거래방식 (표 → 차트) */}
-          <Section title="3. 시설별 × 거래방식 평균 평당가"
+          {/* 3. 건물(단지)별 상위 5 (표 → 차트) */}
+          <Section title={`3. 건물(단지)별 상위 5 평균 평당가 — ${dl}`}
+            note="선택 거래방식·준공필터 기준. 실거래 건물명(아파트·오피스텔명 등)별 평균 평당가 상위 5개.">
+            {topBld.length === 0 ? <Empty /> : (
+              <>
+                <TableBox>
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 text-left text-gray-600">
+                      <tr><th className="px-3 py-2">순위</th><th className="px-3 py-2">건물(단지)</th><th className="px-3 py-2 text-right">건수</th><Th>평균 평당가</Th></tr>
+                    </thead>
+                    <tbody>
+                      {topBld.map((r, i) => (
+                        <tr key={r.name} className="border-t">
+                          <td className="px-3 py-1.5 font-medium">{i + 1}</td>
+                          <td className="px-3 py-1.5">{r.name}</td>
+                          <td className="px-3 py-1.5 text-right text-gray-500">{r.count}</td>
+                          <Td>{fmt(r.avg)}</Td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </TableBox>
+                <BarChart title={`건물(단지)별 상위 5 평균 평당가 (${dl}, 천원/평)`} xName="건물"
+                  x={topBld.map((r) => r.name)}
+                  series={[{ name: '평균 평당가', data: topBld.map((r) => chartVal(r.avg)), color: '#2563eb' }]} />
+              </>
+            )}
+          </Section>
+
+          {/* 4. 시설별 × 거래방식 (표 → 차트) */}
+          <Section title="4. 시설별 × 거래방식 평균 평당가"
             note="행=시설, 열=매매·전세환산·월세환산 평균. 준공필터만 적용. 데이터 없음은 '-'.">
             {crossRows.length === 0 ? <Empty /> : (
               <>
@@ -169,8 +210,8 @@ export default function TxAnalysisPage() {
             )}
           </Section>
 
-          {/* 4. 시설별 × 준공 최근성 (표 → 차트) */}
-          <Section title={`4. 시설별 × 준공연도 최근성 — ${dl}`}
+          {/* 5. 시설별 × 준공 최근성 (표 → 차트) */}
+          <Section title={`5. 시설별 × 준공연도 최근성 — ${dl}`}
             note={`준공연도 기준(거래일과 별개). 기준연도 ${thisYear}년: 최근5년=${thisYear - 5}~${thisYear}, 최근10년=${thisYear - 10}~${thisYear}.`}>
             {recencyRows.length === 0 ? <Empty /> : (
               <>
@@ -201,8 +242,8 @@ export default function TxAnalysisPage() {
             )}
           </Section>
 
-          {/* 5. 준공연도 구간별 평균 (표 → 차트) */}
-          <Section title={`5. 준공연도 구간별 평균 평당가 — ${dl}`}
+          {/* 6. 준공연도 구간별 평균 (표 → 차트) */}
+          <Section title={`6. 준공연도 구간별 평균 평당가 — ${dl}`}
             note="준공경과(기준연도−준공연도) 구간별 평균. 셀 아래 작은 숫자는 건수. 준공연도 있는 건만 집계.">
             {bucketRows.length === 0 ? <Empty /> : (
               <>
