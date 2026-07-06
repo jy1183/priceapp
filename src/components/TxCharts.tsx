@@ -5,6 +5,9 @@ import type { TxRecord } from '@/lib/normalize';
 
 const ReactECharts = dynamic(() => import('echarts-for-react'), { ssr: false });
 
+/** 막대 위쪽에 값(천단위 콤마) 라벨 */
+const barLabel = { show: true, position: 'top', fontSize: 11, formatter: (p: any) => Number(p.value).toLocaleString() };
+
 /** 준공연도별 평균 평당가 + 거래연도별 건수 차트 */
 export default function TxCharts({ rows }: { rows: TxRecord[] }) {
   const byBuild = useMemo(() => {
@@ -41,7 +44,7 @@ export default function TxCharts({ rows }: { rows: TxRecord[] }) {
     grid: { left: 60, right: 20, top: 40, bottom: 40 },
     xAxis: { type: 'category', data: byBuild.years, name: '준공연도' },
     yAxis: { type: 'value' },
-    series: [{ type: 'bar', data: byBuild.avg, itemStyle: { color: '#2563eb' } }],
+    series: [{ type: 'bar', data: byBuild.avg, itemStyle: { color: '#2563eb' }, label: barLabel }],
   };
   const opt2 = {
     title: { text: '거래연도별 거래건수', left: 'center', textStyle: { fontSize: 13 } },
@@ -50,7 +53,7 @@ export default function TxCharts({ rows }: { rows: TxRecord[] }) {
     grid: { left: 50, right: 20, top: 40, bottom: 40 },
     xAxis: { type: 'category', data: byDealYear.years, name: '거래연도' },
     yAxis: { type: 'value', minInterval: 1 },
-    series: [{ type: 'bar', data: byDealYear.counts, itemStyle: { color: '#059669' } }],
+    series: [{ type: 'bar', data: byDealYear.counts, itemStyle: { color: '#059669' }, label: barLabel }],
   };
 
   if (rows.length === 0) return null;

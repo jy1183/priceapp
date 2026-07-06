@@ -61,8 +61,10 @@ export default function RegionPage() {
     xAxis: { type: 'category', data: series.map((p) => p.time) },
     yAxis: { type: 'value', scale: true, name: stat.unit },
     series: [
-      { name: regionName, type: 'line', smooth: true, data: series.map((p) => p.value), itemStyle: { color: '#2563eb' } },
-      ...(natl.length ? [{ name: '전국', type: 'line', smooth: true, data: natl.map((p) => p.value), itemStyle: { color: '#9ca3af' }, lineStyle: { type: 'dashed' } }] : []),
+      { name: regionName, type: 'line', smooth: true, data: series.map((p) => p.value), itemStyle: { color: '#2563eb' },
+        label: { show: true, position: 'top', fontSize: 9, formatter: (p: any) => Number(p.value).toLocaleString() } },
+      ...(natl.length ? [{ name: '전국', type: 'line', smooth: true, data: natl.map((p) => p.value), itemStyle: { color: '#9ca3af' }, lineStyle: { type: 'dashed' },
+        label: { show: true, position: 'bottom', fontSize: 9, color: '#9ca3af', formatter: (p: any) => Number(p.value).toLocaleString() } }] : []),
     ],
   }), [series, natl, stat, regionName]);
 

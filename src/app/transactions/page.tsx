@@ -27,11 +27,34 @@ function monthsBetween(from: string, to: string): string[] {
   return out;
 }
 
+/** 조회 조건 1건 (기본 조회 + 추가 조회 라인 공용) */
+interface QueryForm {
+  sido: string; lawdCd: string; dong: string;
+  facility: Facility; trade: Trade; from: string; to: string;
+}
+
+/** 국토부 실거래 조회 (기본·추가 조회 공용 헬퍼) */
+async function fetchTx(f: Pick<QueryForm, 'lawdCd' | 'dong' | 'facility' | 'trade' | 'from' | 'to'>): Promise<TxRecord[]> {
+  const months = monthsBetween(f.from, f.to);
+  const all: TxRecord[] = [];
+  for (const ymd of months) {
+    const p = new URLSearchParams({ facility: f.facility, trade: f.trade, lawdCd: f.lawdCd, ymd, dong: f.dong });
+    const res = await fetch(`/api/molit?${p}`);
+    const j = await res.json();
+    if (j.error) throw new Error(j.error);
+    for (const it of j.items ?? []) all.push(normalize(f.facility, f.trade, it));
+  }
+  return all;
+}
+
+let _qid = 1;
+
 export default function TransactionsPage() {
   const txForm = useStore((st) => st.txForm);
   const setTxForm = useStore((st) => st.setTxForm);
   const rows = useStore((st) => st.tx);            // 표시 소스 = 스토어(유지)
   const setTxStore = useStore((st) => st.setTx);
+  const appendTx = useStore((st) => st.appendTx);
   const region: RegionValue = { sido: txForm.sido, lawdCd: txForm.lawdCd, dong: txForm.dong };
   const setRegion = (r: RegionValue) => setTxForm({ sido: r.sido, lawdCd: r.lawdCd, dong: r.dong });
   const facility = txForm.facility as Facility;
@@ -45,22 +68,39 @@ export default function TransactionsPage() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
 
+  // 추가 조회 라인 (기존 데이터에 누적)
+  const [extras, setExtras] = useState<(QueryForm & { id: number })[]>([]);
+  const [extraState, setExtraState] = useState<Record<number, { loading: boolean; err: string; added: number | null }>>({});
+
   async function query() {
     setLoading(true); setErr('');
     try {
-      const months = monthsBetween(from, to);
-      const all: TxRecord[] = [];
-      for (const ymd of months) {
-        const p = new URLSearchParams({ facility, trade, lawdCd: region.lawdCd, ymd, dong: region.dong });
-        const res = await fetch(`/api/molit?${p}`);
-        const j = await res.json();
-        if (j.error) throw new Error(j.error);
-        for (const it of j.items ?? []) all.push(normalize(facility, trade, it));
-      }
+      const all = await fetchTx({ lawdCd: region.lawdCd, dong: region.dong, facility, trade, from, to });
       setTxStore(all, { facility, trade, region: `${region.sido} ${region.dong}`.trim(), from, to });
       if (all.length === 0) setErr('조회 결과가 없습니다. 기간·지역을 조정해 보세요.');
     } catch (e) { setErr(String(e)); }
     finally { setLoading(false); }
+  }
+
+  function addQueryLine() {
+    // 현재 기본 조회 조건을 초기값으로 복사
+    setExtras((xs) => [...xs, { id: _qid++, sido: region.sido, lawdCd: region.lawdCd, dong: region.dong, facility, trade, from, to }]);
+  }
+  function updateExtra(id: number, patch: Partial<QueryForm>) {
+    setExtras((xs) => xs.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+  }
+  function removeExtra(id: number) {
+    setExtras((xs) => xs.filter((x) => x.id !== id));
+    setExtraState((s) => { const n = { ...s }; delete n[id]; return n; });
+  }
+  async function runExtra(f: QueryForm & { id: number }) {
+    setExtraState((s) => ({ ...s, [f.id]: { loading: true, err: '', added: null } }));
+    try {
+      const got = await fetchTx(f);
+      if (got.length === 0) { setExtraState((s) => ({ ...s, [f.id]: { loading: false, err: '조회 결과가 없습니다.', added: null } })); return; }
+      appendTx(got);
+      setExtraState((s) => ({ ...s, [f.id]: { loading: false, err: '', added: got.length } }));
+    } catch (e) { setExtraState((s) => ({ ...s, [f.id]: { loading: false, err: String(e), added: null } })); }
   }
 
   const thisYear = new Date().getFullYear();
@@ -122,7 +162,53 @@ export default function TransactionsPage() {
           className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
           {loading ? '조회 중…' : '조회'}
         </button>
+        <button onClick={addQueryLine}
+          className="rounded-md border border-blue-300 px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50">
+          + 조회 추가
+        </button>
       </div>
+
+      {extras.length > 0 && (
+        <div className="no-print mb-4 space-y-3">
+          <p className="text-xs text-gray-500">추가 조회 — 지역·시설·거래·기간을 설정하고 &quot;조회(추가)&quot;하면 기존 데이터 아래에 누적됩니다.</p>
+          {extras.map((f) => {
+            const stt = extraState[f.id] ?? { loading: false, err: '', added: null };
+            return (
+              <div key={f.id} className="flex flex-wrap items-end gap-3 rounded-lg border border-blue-200 bg-blue-50/40 p-4">
+                <RegionPicker
+                  value={{ sido: f.sido, lawdCd: f.lawdCd, dong: f.dong }}
+                  onChange={(r) => updateExtra(f.id, { sido: r.sido, lawdCd: r.lawdCd, dong: r.dong })}
+                />
+                <L label="시설유형">
+                  <select value={f.facility} onChange={(e) => updateExtra(f.id, { facility: e.target.value as Facility })} className="rounded border px-2 py-1">
+                    {FACILITIES.map((x) => <option key={x}>{x}</option>)}
+                  </select>
+                </L>
+                <L label="거래">
+                  <select value={f.trade} onChange={(e) => updateExtra(f.id, { trade: e.target.value as Trade })} className="rounded border px-2 py-1">
+                    <option value="매매">매매</option><option value="전월세">전월세</option>
+                  </select>
+                </L>
+                <L label="기간(YYYYMM)">
+                  <div className="flex items-center gap-1">
+                    <input value={f.from} onChange={(e) => updateExtra(f.id, { from: e.target.value })} className="w-24 rounded border px-2 py-1" />
+                    <span>~</span>
+                    <input value={f.to} onChange={(e) => updateExtra(f.id, { to: e.target.value })} className="w-24 rounded border px-2 py-1" />
+                  </div>
+                </L>
+                <button onClick={() => runExtra(f)} disabled={stt.loading}
+                  className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50">
+                  {stt.loading ? '조회 중…' : '조회(추가)'}
+                </button>
+                <button onClick={() => removeExtra(f.id)}
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50">삭제</button>
+                {stt.added != null && <span className="pb-1.5 text-xs font-medium text-emerald-700">+{stt.added}건 추가됨</span>}
+                {stt.err && <span className="pb-1.5 text-xs text-amber-700">{stt.err}</span>}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {err && <div className="mb-4 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">{err}</div>}
 

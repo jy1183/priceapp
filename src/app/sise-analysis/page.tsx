@@ -81,7 +81,7 @@ export default function SiseAnalysisPage() {
 
           {/* 시설 평균 분석 차트 */}
           <div className="mt-4">
-            <FacilityChart rows={rows.map((r) => ({ f: r.f, avg: r.excl.avg }))} />
+            <FacilityChart rows={rows.map((r) => ({ f: r.f, avg: r.excl.avg, top10: r.excl.top10, top30: r.excl.top30, top50: r.excl.top50 }))} />
           </div>
 
           {/* 건물명별 상위 5 */}

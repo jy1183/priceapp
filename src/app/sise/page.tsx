@@ -1,5 +1,5 @@
 'use client';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { parseSiseRaw, parseNaverPaste, type SiseRawInput } from '@/lib/calc/sise';
 import { aggregate } from '@/lib/calc/aggregate';
 import { DEFAULT_CONFIG, SISE_FACILITIES } from '@/lib/calc/constants';
@@ -42,10 +42,16 @@ export default function SisePage() {
   const setConfirmed = useStore((st) => st.setSiseConfirmed);
   const resetSise = useStore((st) => st.resetSise);
   const setSise = useStore((st) => st.setSise);
+  const [appendMode, setAppendMode] = useState(false);
 
   function doParse(text: string) {
+    // 기존 행과 id 충돌 방지 (새로고침 후 _id 리셋 대비)
+    const base = rows.reduce((m, r) => Math.max(m, r.id), 0);
+    if (_id <= base) _id = base + 1;
     const parsed: SiseInputRow[] = parseNaverPaste(text).map((it) => ({ id: _id++, ...it }));
-    setRows(parsed); setConfirmed(false);
+    setRows(appendMode ? [...rows, ...parsed] : parsed);
+    setConfirmed(false);
+    setAppendMode(false);
   }
 
   const results = useMemo(
@@ -98,9 +104,16 @@ export default function SisePage() {
             }} disabled={errorCount > 0}
             className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50">
             {errorCount > 0 ? `오류 ${errorCount}행 수정 필요` : '확정 → 분석 반영'}</button>}
-          {rows.length > 0 && <button onClick={() => { if (confirm('파싱한 데이터를 모두 지웁니다. 계속할까요?')) resetSise(); }}
+          {rows.length > 0 && <button onClick={() => { setAppendMode(true); setPaste(''); setConfirmed(false); }}
+            className="rounded-md border border-blue-300 px-4 py-2 text-sm text-blue-600 hover:bg-blue-50">데이터 추가</button>}
+          {rows.length > 0 && <button onClick={() => { if (confirm('파싱한 데이터를 모두 지웁니다. 계속할까요?')) { resetSise(); setAppendMode(false); } }}
             className="rounded-md border border-red-300 px-4 py-2 text-sm text-red-600 hover:bg-red-50">초기화</button>}
         </div>
+        {appendMode && (
+          <p className="mt-2 text-xs font-medium text-blue-600">
+            추가 입력 모드 — 새 매물목록을 붙여넣고 &quot;파싱&quot;하면 기존 표 아래에 이어서 추가됩니다.
+          </p>
+        )}
       </div>
 
       {rows.length > 0 && (

@@ -30,7 +30,8 @@ export default function KosisPopulation() {
     grid: { left: 60, right: 20, top: 40, bottom: 70 },
     xAxis: { type: 'category', data: data.ages.map((a) => a.label), axisLabel: { rotate: 60, fontSize: 9 } },
     yAxis: { type: 'value', name: '명' },
-    series: [{ type: 'bar', data: data.ages.map((a) => a.value), itemStyle: { color: '#7c3aed' } }],
+    series: [{ type: 'bar', data: data.ages.map((a) => a.value), itemStyle: { color: '#7c3aed' },
+      label: { show: true, position: 'top', fontSize: 9, formatter: (p: any) => Number(p.value).toLocaleString() } }],
   }), [data]);
 
   return (

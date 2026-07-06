@@ -38,6 +38,7 @@ interface AppState {
   setSiseConfirmed: (v: boolean) => void;
   resetSise: () => void;
   setTx: (rows: TxRecord[], meta: TxMeta) => void;
+  appendTx: (rows: TxRecord[]) => void;
   setTxForm: (f: Partial<AppState['txForm']>) => void;
   loadSnapshot: (s: Partial<AppState>) => void;
 }
@@ -63,6 +64,7 @@ export const useStore = create<AppState>()(
   setSiseConfirmed: (siseConfirmed) => set({ siseConfirmed }),
   resetSise: () => set({ siseInput: [], sisePaste: '', siseConfirmed: false, sise: [], siseMeta: { parsedCount: 0, errorCount: 0 } }),
   setTx: (tx, txMeta) => set({ tx, txMeta }),
+  appendTx: (rows) => set((st) => ({ tx: [...st.tx, ...rows] })),
   setTxForm: (f) => set((st) => ({ txForm: { ...st.txForm, ...f } })),
   loadSnapshot: (s) => set(s),
     }),
