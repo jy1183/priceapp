@@ -19,6 +19,7 @@ const NAV = [
   { href: '/region', label: '⑥ 지역분석' },
   { href: '/settings', label: '⚙ 분석환경설정' },
   { href: '/validation', label: '✓ 검증 리포트' },
+  { href: '/reference', label: '📖 참고' },
 ];
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

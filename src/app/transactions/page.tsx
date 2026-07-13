@@ -118,6 +118,7 @@ export default function TransactionsPage() {
   // 값 있는 컬럼만 노출
   const cols = useMemo(() => {
     const defs: { key: keyof TxRecord; label: string; fmt?: (v: any) => string }[] = [
+      { key: 'facility', label: '유형' },
       { key: 'name', label: '시설명' },
       { key: 'dealType', label: '거래' },
       { key: 'dealDate', label: '거래일' },
@@ -137,6 +138,7 @@ export default function TransactionsPage() {
       <h1 className="mb-1 text-2xl font-bold">실거래 조회 · 분석</h1>
       <p className="mb-4 text-sm text-gray-600">
         국토부 실거래가를 조회해 원본을 확인하고, 시설별 평당가 평균·상위% 를 집계합니다. &quot;준공 N년내&quot;는 준공연도 기준입니다.
+        <br />평당가 기준 — 아파트·오피스텔·연립다세대: 전용 / 단독다가구: 대지 / 토지: 계약 / 상업업무용: 연면적.
       </p>
 
       <div className="no-print mb-4 flex flex-wrap items-end gap-3 rounded-lg border bg-white p-4">
@@ -225,12 +227,15 @@ export default function TransactionsPage() {
             <span className="ml-2 text-xs text-gray-400">기준: {facility}·{trade}, {filtered.length}건</span>
           </div>
 
-          <div className="mb-4 grid grid-cols-4 gap-3">
-            <Stat label="평균" v={agg.avg} />
-            <Stat label="상위10% 평균" v={agg.top10} />
-            <Stat label="상위30% 평균" v={agg.top30} />
-            <Stat label="상위50% 평균" v={agg.top50} />
+          <div className="mb-1 grid grid-cols-4 gap-3">
+            <Stat label="평균 평당가*" v={agg.avg} />
+            <Stat label="상위10% 평균*" v={agg.top10} />
+            <Stat label="상위30% 평균*" v={agg.top30} />
+            <Stat label="상위50% 평균*" v={agg.top50} />
           </div>
+          <p className="mb-4 text-xs text-gray-400">
+            * 평당가 면적 기준 — 아파트·오피스텔·연립다세대=전용, 단독다가구=대지, 토지=계약, 상업업무용=연면적 (누적 조회 시 시설 혼합)
+          </p>
 
           <TxCharts rows={filtered} />
 

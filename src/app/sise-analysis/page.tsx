@@ -5,6 +5,11 @@ import { useStore } from '@/lib/store';
 import { aggregate } from '@/lib/calc/aggregate';
 import { parseSiseRaw } from '@/lib/calc/sise';
 import { FacilityChart, BuildingChart } from '@/components/SiseAnalysisCharts';
+import BarChart from '@/components/BarChart';
+import { AREA_BANDS, SISE_RESIDENTIAL, bandAggregate, type BandInput } from '@/lib/areaBands';
+
+/** 평형대 차트용 시설 시리즈 색상 */
+const BAND_COLORS = ['#1d4ed8', '#059669', '#d97706', '#7c3aed', '#dc2626', '#0891b2'];
 
 /** ④ 시세 분석 — /sise에서 확정한 시세의 시설별 평당가 집계 */
 export default function SiseAnalysisPage() {
@@ -42,6 +47,21 @@ export default function SiseAnalysisPage() {
       .map(([name, vals]) => ({ name, count: vals.length, avg: vals.reduce((a, b) => a + b, 0) / vals.length }))
       .sort((a, b) => b.avg - a.avg)
       .slice(0, 5);
+  }, [siseInput, config]);
+
+  // 평형대별 평균 가격 — 주거 시설만, 전용면적(폴백: 단독/전원주택 연면적) 기준 (D2·R4)
+  const bandRows = useMemo(() => {
+    const inputs: BandInput[] = siseInput
+      .map((r) => {
+        const p = parseSiseRaw(r, config);
+        const fac = p.row.facility;
+        if (p.row.exclM2 != null) return { facility: fac, area: p.row.exclM2, ppa: p.ppa.ppaExcl ?? null };
+        if ((fac === '단독/다가구' || fac === '전원주택') && p.row.yeonM2 != null)
+          return { facility: fac, area: p.row.yeonM2, ppa: p.ppa.ppaYeon ?? null };
+        return { facility: fac, area: null, ppa: null };
+      })
+      .filter((i) => SISE_RESIDENTIAL.includes(i.facility));
+    return bandAggregate(inputs);
   }, [siseInput, config]);
 
   const fmt = (v: number) => (Number.isFinite(v) ? Math.round(v).toLocaleString() : '-');
@@ -99,6 +119,51 @@ export default function SiseAnalysisPage() {
             <FacilityChart rows={rows.map((r) => ({ f: r.f, avg: r.excl.avg, top10: r.excl.top10, top30: r.excl.top30, top50: r.excl.top50 }))} />
           </div>
 
+          {/* 평형대별 평균 가격 분석 */}
+          {bandRows.facilities.length > 0 && (
+            <div className="mt-8">
+              <h2 className="mb-1 text-lg font-semibold">평형대별 평균 가격 분석 (전용면적 기준)</h2>
+              <p className="mb-3 text-sm text-gray-600">
+                주거 상품(아파트·오피스텔·빌라／연립·단독/다가구·전원주택)만 집계합니다. 전용면적 기준 구분이며, 단독/다가구·전원주택은 전용면적이 없으면 연면적으로 분류합니다. 월세는 매매환산 평당가, 환산가 미산출(0)·결측 행은 집계에서 제외합니다. 단위 천원/평.
+              </p>
+              <div className="overflow-x-auto rounded-lg border bg-white">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-left text-gray-600">
+                    <tr>
+                      <th className="px-3 py-2">시설</th>
+                      {AREA_BANDS.map((b) => <th key={b.key} className="px-3 py-2 text-right">{b.label}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bandRows.facilities.map((f) => (
+                      <tr key={f} className="border-t">
+                        <td className="px-3 py-1.5 font-medium">{f}</td>
+                        {AREA_BANDS.map((b) => {
+                          const c = bandRows.cells[f][b.key];
+                          return (
+                            <td key={b.key} className="px-3 py-1.5 text-right">
+                              {c.count ? fmt(c.avg) : '-'}
+                              {c.count ? <span className="ml-1 text-[10px] text-gray-400">{c.count}</span> : null}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-4">
+                <BarChart title="평형대별 평균 평당가 (전용면적 기준, 천원/평)" xName="평형대"
+                  x={AREA_BANDS.map((b) => b.label)}
+                  series={bandRows.facilities.map((f, i) => ({
+                    name: f,
+                    data: AREA_BANDS.map((b) => (bandRows.cells[f][b.key].count ? Math.round(bandRows.cells[f][b.key].avg) : null)),
+                    color: BAND_COLORS[i % BAND_COLORS.length],
+                  }))} />
+              </div>
+            </div>
+          )}
+
           {/* 건물명별 상위 5 */}
           <div className="mt-8">
             <h2 className="mb-1 text-lg font-semibold">건물별 평균 평당가 상위 5</h2>
@@ -116,7 +181,7 @@ export default function SiseAnalysisPage() {
                     <thead className="bg-gray-50 text-left text-gray-600">
                       <tr>
                         <th className="px-3 py-2">순위</th><th className="px-3 py-2">건물명</th>
-                        <th className="px-3 py-2">건수</th><th className="px-3 py-2">평균 평당가</th>
+                        <th className="px-3 py-2">건수</th><th className="px-3 py-2">평균 평당가(전용)</th>
                       </tr>
                     </thead>
                     <tbody>

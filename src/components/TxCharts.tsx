@@ -34,7 +34,7 @@ export default function TxCharts({ rows, dealLabel = '매매' }: { rows: TxRecor
   const byBucket = useMemo(() => ageBucketOverall(rows, thisYear), [rows, thisYear]);
 
   const opt1 = {
-    title: { text: `준공연도별 평균 평당가 (${dealLabel}, 천원/평)`, left: 'center', textStyle: { fontSize: 13 } },
+    title: { text: `준공연도별 평균 평당가 (${dealLabel}, 천원/평, 기준: 시설별 상이)`, left: 'center', textStyle: { fontSize: 13 } },
     tooltip: { trigger: 'axis' },
     toolbox: { right: 10, feature: { saveAsImage: { title: '이미지' } } },
     grid: { left: 60, right: 20, top: 40, bottom: 40 },
@@ -43,7 +43,7 @@ export default function TxCharts({ rows, dealLabel = '매매' }: { rows: TxRecor
     series: [{ type: 'bar', data: byBuild.avg, itemStyle: { color: '#2563eb' }, label: barLabel }],
   };
   const opt3 = {
-    title: { text: `준공연도 구간별 평균 평당가 (${dealLabel}, 천원/평)`, left: 'center', textStyle: { fontSize: 13 } },
+    title: { text: `준공연도 구간별 평균 평당가 (${dealLabel}, 천원/평, 기준: 시설별 상이)`, left: 'center', textStyle: { fontSize: 13 } },
     tooltip: { trigger: 'axis' },
     toolbox: { right: 10, feature: { saveAsImage: { title: '이미지' } } },
     grid: { left: 60, right: 20, top: 40, bottom: 40 },

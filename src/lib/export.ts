@@ -9,7 +9,7 @@ export interface ExportPayload {
   rows: SummaryRow[];
 }
 const r = (v: number) => (Number.isFinite(v) ? Math.round(v) : 0);
-const HEAD = ['시설', '시세 건수', '시세 평균', '시세 상위10%', '시세 상위30%', '실거래 건수', '실거래 평균', '실거래 상위10%', '실거래 상위30%', '괴리(%)'];
+const HEAD = ['시설', '시세 건수', '시세 평균(전용)', '시세 상위10%(전용)', '시세 상위30%(전용)', '실거래 건수', '실거래 평균(전용)', '실거래 상위10%(전용)', '실거래 상위30%(전용)', '괴리(%)'];
 const toRow = (x: SummaryRow) => [x.facility, x.sise.count, r(x.sise.avg), r(x.sise.top10), r(x.sise.top30), x.tx.count, r(x.tx.avg), r(x.tx.top10), r(x.tx.top30), Number.isFinite(x.gap) ? Number(x.gap.toFixed(1)) : ''];
 
 function dl(blob: Blob, name: string) {

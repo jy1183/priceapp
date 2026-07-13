@@ -18,7 +18,7 @@ export function FacilityChart({ rows }: { rows: FacilityChartRow[] }) {
     data: data.map((r) => (Number.isFinite(r[key] as number) ? Math.round(r[key] as number) : null)),
   });
   const opt = {
-    title: { text: '시설별 전용 평당가(천원/평)', left: 'center', textStyle: { fontSize: 13 } },
+    title: { text: '시설별 평당가(전용/대지, 천원/평)', left: 'center', textStyle: { fontSize: 13 } },
     tooltip: { trigger: 'axis' },
     legend: { top: 26 },
     toolbox: { right: 10, feature: { saveAsImage: { title: '이미지' } } },
@@ -44,7 +44,7 @@ export function BuildingChart({ rows }: { rows: { name: string; avg: number }[] 
   const data = rows.filter((r) => Number.isFinite(r.avg));
   if (data.length === 0) return null;
   const opt = {
-    title: { text: '건물별 평균 평당가 상위(천원/평)', left: 'center', textStyle: { fontSize: 13 } },
+    title: { text: '건물별 평균 평당가(전용) 상위(천원/평)', left: 'center', textStyle: { fontSize: 13 } },
     tooltip: { trigger: 'axis' },
     toolbox: { right: 10, feature: { saveAsImage: { title: '이미지' } } },
     grid: { left: 70, right: 20, top: 44, bottom: 70 },

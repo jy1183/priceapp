@@ -193,8 +193,8 @@ export default function SisePage() {
                   <th className="px-3 py-2 text-center" colSpan={2}>연면적 기준</th>
                 </tr>
                 <tr>
-                  <th className="px-3 py-2">건수</th><th className="px-3 py-2">평균</th><th className="px-3 py-2">상위10%</th><th className="px-3 py-2">상위30%</th><th className="px-3 py-2">상위50%</th>
-                  <th className="px-3 py-2">건수</th><th className="px-3 py-2">평균</th>
+                  <th className="px-3 py-2">건수</th><th className="px-3 py-2">평균 평당가</th><th className="px-3 py-2">상위10%</th><th className="px-3 py-2">상위30%</th><th className="px-3 py-2">상위50%</th>
+                  <th className="px-3 py-2">건수</th><th className="px-3 py-2">평균 평당가</th>
                 </tr>
               </thead>
               <tbody>

@@ -22,6 +22,15 @@ export interface TxRecord {
   raw: Record<string, unknown>;
 }
 
+/** 시설별 평당가 면적 기준 라벨 (R1) — 표기 전용, 계산에는 미사용 */
+export const PPA_BASIS: Record<Facility, string> = {
+  아파트: '전용', 오피스텔: '전용', 연립다세대: '전용',
+  단독다가구: '대지', 토지: '계약', 상업업무용: '연면적',
+};
+/** 시설명에 기준 접미 — 예) 아파트 → 아파트(전용), 단독다가구 → 단독다가구(대지) */
+export const facilityWithBasis = (f: string): string =>
+  PPA_BASIS[f as Facility] ? `${f}(${PPA_BASIS[f as Facility]})` : f;
+
 const num = (v: unknown): number | null => {
   if (v === null || v === undefined || v === '') return null;
   const n = parseFloat(String(v).replace(/,/g, '').trim());
