@@ -11,18 +11,24 @@ const barLabel = {
 
 export interface BarSeries { name: string; data: (number | null)[]; color?: string }
 
-/** 범용 막대 차트 — 단일/그룹(범례) 공용. 표 다음에 배치하는 용도 */
+/** 범용 막대 차트 — 단일/그룹(범례) 공용. 표 다음에 배치하는 용도
+ *  wrapX: x축 항목명을 생략 없이 전부 표시하고 ' (' 앞에서 2줄로 줄바꿈 (평형대 라벨용) */
 export default function BarChart({
-  title, x, series, xName, height = 300,
-}: { title: string; x: (string | number)[]; series: BarSeries[]; xName?: string; height?: number }) {
+  title, x, series, xName, height = 300, wrapX = false,
+}: { title: string; x: (string | number)[]; series: BarSeries[]; xName?: string; height?: number; wrapX?: boolean }) {
   const grouped = series.length > 1;
   const option = {
     title: { text: title, left: 'center', textStyle: { fontSize: 13 } },
     tooltip: { trigger: 'axis' },
     legend: grouped ? { top: 24, textStyle: { fontSize: 11 } } : undefined,
     toolbox: { right: 10, feature: { saveAsImage: { title: '이미지' } } },
-    grid: { left: 64, right: 20, top: grouped ? 60 : 44, bottom: 44 },
-    xAxis: { type: 'category', data: x, name: xName },
+    grid: { left: 64, right: 20, top: grouped ? 60 : 44, bottom: wrapX ? 58 : 44 },
+    xAxis: {
+      type: 'category', data: x, name: xName,
+      axisLabel: wrapX
+        ? { interval: 0, fontSize: 10, formatter: (v: any) => String(v).replace(' (', '\n(') }
+        : undefined,
+    },
     yAxis: { type: 'value' },
     series: series.map((s) => ({
       name: s.name, type: 'bar', data: s.data,

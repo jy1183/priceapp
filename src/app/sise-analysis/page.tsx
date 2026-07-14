@@ -153,7 +153,7 @@ export default function SiseAnalysisPage() {
                 </table>
               </div>
               <div className="mt-4">
-                <BarChart title="평형대별 평균 평당가 (전용면적 기준, 천원/평)" xName="평형대"
+                <BarChart title="평형대별 평균 평당가 (전용면적 기준, 천원/평)" xName="평형대" wrapX
                   x={AREA_BANDS.map((b) => b.label)}
                   series={bandRows.facilities.map((f, i) => ({
                     name: f,
@@ -181,7 +181,7 @@ export default function SiseAnalysisPage() {
                     <thead className="bg-gray-50 text-left text-gray-600">
                       <tr>
                         <th className="px-3 py-2">순위</th><th className="px-3 py-2">건물명</th>
-                        <th className="px-3 py-2">건수</th><th className="px-3 py-2">평균 평당가(전용)</th>
+                        <th className="px-3 py-2">건수</th><th className="px-3 py-2 text-center">평균 평당가(전용)</th>
                       </tr>
                     </thead>
                     <tbody>

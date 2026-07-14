@@ -10,9 +10,12 @@ const ReactECharts = dynamic(() => import('echarts-for-react'), { ssr: false });
 type Pt = { time: string; value: number };
 
 /** 지역분석 — 부동산원 가격지수·거래현황 시계열 (Phase 4)
- *  지역선정: 실거래 조회지역(txForm) 기준 기준1(시도)·기준2(구)를 비교 */
+ *  지역선정: 실거래 조회지역(txForm) 기준 기준1(시도)·기준2(구)를 비교.
+ *  조회 결과는 스토어(localStorage)에 유지 — [초기화] 전까지 화면 이동·새로고침에도 표시. */
 export default function RegionPage() {
   const txForm = useStore((s) => s.txForm);
+  const rebResult = useStore((s) => s.rebResult);
+  const setRebResult = useStore((s) => s.setRebResult);
   const sggName = sigunguName(txForm.sido, txForm.lawdCd);     // 예: 영등포구
 
   const [statId, setStatId] = useState('sale_idx');
@@ -21,12 +24,20 @@ export default function RegionPage() {
   const [guCls, setGuCls] = useState('');       // 기준2 (구/동→구 폴백, 수동조정 가능)
   const [start, setStart] = useState('202301');
   const [end, setEnd] = useState('202506');
-  const [sidoSeries, setSidoSeries] = useState<Pt[]>([]);
-  const [guSeries, setGuSeries] = useState<Pt[]>([]);
-  const [natl, setNatl] = useState<Pt[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
+  const [ctrlRestored, setCtrlRestored] = useState(false);
   const stat = rebStat(statId)!;
+
+  // 저장된 조회 결과가 있으면 컨트롤(통계·기간)을 1회 복원 (스토어는 마운트 후 rehydrate)
+  useEffect(() => {
+    if (!ctrlRestored && rebResult) {
+      setStatId(rebResult.statId);
+      setStart(rebResult.start);
+      setEnd(rebResult.end);
+      setCtrlRestored(true);
+    }
+  }, [rebResult, ctrlRestored]);
 
   // 통계 변경 시 지역 항목 로드 + 실거래 조회지역 기준 기준1/기준2 자동선택
   useEffect(() => {
@@ -57,11 +68,17 @@ export default function RegionPage() {
         fetch(`${base}&cls=${REB_NATIONWIDE_CLS}`).then((r) => r.json()),
       ]);
       if (a.error) throw new Error(a.error);
-      setSidoSeries(a.series ?? []);
-      setGuSeries(b.series ?? []);
-      setNatl(c.series ?? []);
-      if ((a.series ?? []).length === 0 && (b.series ?? []).length === 0)
+      const sidoS: Pt[] = a.series ?? [], guS: Pt[] = b.series ?? [], natlS: Pt[] = c.series ?? [];
+      if (sidoS.length === 0 && guS.length === 0) {
+        setRebResult(null);
         setErr(a.message || b.message || '데이터가 없습니다(주기/기간 확인).');
+      } else {
+        setRebResult({
+          statId, statLabel: stat.label, unit: stat.unit, start, end,
+          sidoName, guName,
+          sidoSeries: sidoS, guSeries: guS, natl: natlS,
+        });
+      }
     } catch (e) { setErr(String(e)); }
     finally { setLoading(false); }
   }
@@ -70,34 +87,45 @@ export default function RegionPage() {
   const guName = items.find((i) => i.clsId === guCls)?.name ?? sggName ?? '구';
   const guIsFallbackToSido = guCls && guCls === sidoCls;
 
+  // 표시 데이터·라벨은 저장된 조회 결과 기준(없으면 현재 컨트롤 기준)
+  const sidoSeries = rebResult?.sidoSeries ?? [];
+  const guSeries = rebResult?.guSeries ?? [];
+  const natl = rebResult?.natl ?? [];
+  const dispStatLabel = rebResult?.statLabel ?? stat.label;
+  const dispUnit = rebResult?.unit ?? stat.unit;
+  const dispSido = rebResult?.sidoName ?? sidoName;
+  const dispGu = rebResult?.guName ?? guName;
+
   // x축은 세 시리즈 시간의 합집합
   const times = useMemo(() => {
     const set = new Set<string>();
     [sidoSeries, guSeries, natl].forEach((s) => s.forEach((p) => set.add(p.time)));
     return Array.from(set).sort((x, y) => x.localeCompare(y));
-  }, [sidoSeries, guSeries, natl]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rebResult]);
   const align = (s: Pt[]) => { const m = new Map(s.map((p) => [p.time, p.value])); return times.map((t) => m.get(t) ?? null); };
 
   const lineLabel = (color: string, pos: 'top' | 'bottom') => ({
     show: true, position: pos, fontSize: 9, color, formatter: (p: any) => (p.value == null ? '' : Number(p.value).toLocaleString()),
   });
   const option = useMemo(() => ({
-    title: { text: `${stat.label} — 기준1(${sidoName}) vs 기준2(${guName})`, left: 'center', textStyle: { fontSize: 13 } },
+    title: { text: `${dispStatLabel} — 기준1(${dispSido}) vs 기준2(${dispGu})`, left: 'center', textStyle: { fontSize: 13 } },
     tooltip: { trigger: 'axis' },
     toolbox: { right: 10, feature: { saveAsImage: { title: '이미지' } } },
-    legend: { bottom: 0, data: [`기준1 ${sidoName}(시도)`, `기준2 ${guName}`, '전국'] },
+    legend: { bottom: 0, data: [`기준1 ${dispSido}(시도)`, `기준2 ${dispGu}`, '전국'] },
     grid: { left: 60, right: 20, top: 40, bottom: 45 },
     xAxis: { type: 'category', data: times },
-    yAxis: { type: 'value', scale: true, name: stat.unit },
+    yAxis: { type: 'value', scale: true, name: dispUnit },
     series: [
-      { name: `기준1 ${sidoName}(시도)`, type: 'line', smooth: true, connectNulls: true, data: align(sidoSeries),
+      { name: `기준1 ${dispSido}(시도)`, type: 'line', smooth: true, connectNulls: true, data: align(sidoSeries),
         itemStyle: { color: '#2563eb' }, label: lineLabel('#2563eb', 'top') },
-      { name: `기준2 ${guName}`, type: 'line', smooth: true, connectNulls: true, data: align(guSeries),
+      { name: `기준2 ${dispGu}`, type: 'line', smooth: true, connectNulls: true, data: align(guSeries),
         itemStyle: { color: '#dc2626' }, label: lineLabel('#dc2626', 'bottom') },
       ...(natl.length ? [{ name: '전국', type: 'line', smooth: true, connectNulls: true, data: align(natl),
         itemStyle: { color: '#9ca3af' }, lineStyle: { type: 'dashed' }, label: { show: false } }] : []),
     ],
-  }), [times, sidoSeries, guSeries, natl, stat, sidoName, guName]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [times, rebResult, dispStatLabel, dispUnit, dispSido, dispGu]);
 
   const last = (s: Pt[]) => (s.length ? s[s.length - 1] : null);
   const hasData = sidoSeries.length > 0 || guSeries.length > 0;
@@ -107,6 +135,7 @@ export default function RegionPage() {
       <h1 className="mb-1 text-2xl font-bold">지역분석 — 부동산원 통계</h1>
       <p className="mb-4 text-sm text-gray-600">
         실거래 조회지역 기준으로 <b>기준1(시도)</b>과 <b>기준2(구)</b>의 매매가격지수·전세·상가임대·거래현황을 비교합니다(전국 포함).
+        조회된 데이터는 <b>초기화</b> 전까지 화면 이동·새로고침에도 유지됩니다.
       </p>
 
       <div className="no-print mb-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-900">
@@ -135,6 +164,11 @@ export default function RegionPage() {
         <button onClick={load} disabled={loading} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
           {loading ? '조회 중…' : '조회'}
         </button>
+        {rebResult && (
+          <button onClick={() => setRebResult(null)} className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50">
+            초기화
+          </button>
+        )}
         <span className="pb-1.5 text-xs text-gray-400">주기 {stat.cycle}</span>
       </div>
 
@@ -151,8 +185,8 @@ export default function RegionPage() {
                   <th className="px-3 py-2 text-right">변동</th></tr>
               </thead>
               <tbody>
-                {[{ tag: '기준1(시도)', nm: sidoName, s: sidoSeries },
-                  { tag: '기준2(구)', nm: guName, s: guSeries },
+                {[{ tag: '기준1(시도)', nm: dispSido, s: sidoSeries },
+                  { tag: '기준2(구)', nm: dispGu, s: guSeries },
                   { tag: '전국', nm: '전국', s: natl }].map((r) => {
                   const f = r.s[0]?.value, l = last(r.s)?.value;
                   const d = f != null && l != null ? l - f : null;

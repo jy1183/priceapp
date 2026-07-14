@@ -86,6 +86,32 @@ export function bandByFacility(rows: TxRecord[]): BandByFacilityResult {
   return bandAggregate(inputs);
 }
 
+/** 시설 × 평형대 거래 건수 (tx용) — 건수 집계이므로 ppa 유효성과 무관하게 평형대 분류 가능한 행 전부 포함 */
+export interface BandCountResult {
+  facilities: string[];
+  cells: Record<string, Record<string, number>>; // cells[facility][bandKey] = 건수
+  totals: Record<string, number>;                // totals[bandKey] = 전체 건수
+}
+export function bandCountByFacility(rows: TxRecord[]): BandCountResult {
+  const classified = rows
+    .filter((r) => TX_RESIDENTIAL.includes(r.facility))
+    .map((r) => ({ facility: r.facility, band: classifyBand(bandAreaOf(r)) }))
+    .filter((i) => i.band != null) as { facility: string; band: AreaBand }[];
+  const facilities = orderFacilities(classified.map((i) => i.facility));
+  const cells: Record<string, Record<string, number>> = {};
+  const totals: Record<string, number> = {};
+  for (const b of AREA_BANDS) totals[b.key] = 0;
+  for (const f of facilities) {
+    cells[f] = {};
+    for (const b of AREA_BANDS) {
+      const n = classified.filter((i) => i.facility === f && i.band.key === b.key).length;
+      cells[f][b.key] = n;
+      totals[b.key] += n;
+    }
+  }
+  return { facilities, cells, totals };
+}
+
 export interface RecencyBandRow { key: '5' | '10' | 'all'; label: string; cells: Record<string, BandCell> }
 /** 준공최근성(최근5/10/전체) × 평형대 평균 평당가 (tx용) — 준공연도 기준(거래일과 별개) */
 export function bandByRecency(rows: TxRecord[], thisYear: number): { rows: RecencyBandRow[] } {

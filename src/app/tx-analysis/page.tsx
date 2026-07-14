@@ -6,9 +6,9 @@ import BarChart from '@/components/BarChart';
 import {
   DEAL_TYPES, DEAL_LABELS, BUILD_BUCKETS, type DealType,
   filterByRecency, facilityAgg, facilityByDeal, facilityByRecency, facilityByAgeBucket,
-  avgByBuildYearFacility, topBuildings,
+  topBuildings,
 } from '@/lib/txAnalysis';
-import { AREA_BANDS, bandByFacility, bandByRecency } from '@/lib/areaBands';
+import { AREA_BANDS, bandByFacility, bandByRecency, bandCountByFacility } from '@/lib/areaBands';
 import { facilityWithBasis } from '@/lib/normalize';
 
 /** 시설별 시리즈 색상 팔레트 */
@@ -35,7 +35,6 @@ export default function TxAnalysisPage() {
   const filtered = useMemo(() => filterByRecency(tx, period, thisYear), [tx, period, thisYear]);
   const dealRows = useMemo(() => filtered.filter((r) => r.dealType === deal), [filtered, deal]);
 
-  const buildFac = useMemo(() => avgByBuildYearFacility(dealRows), [dealRows]);
   const aggRows = useMemo(() => facilityAgg(dealRows, config.topPercentiles), [dealRows, config]);
   const topBld = useMemo(() => topBuildings(dealRows, 5), [dealRows]);
   const crossRows = useMemo(() => facilityByDeal(filtered), [filtered]);
@@ -43,6 +42,7 @@ export default function TxAnalysisPage() {
   const bucketRows = useMemo(() => facilityByAgeBucket(dealRows, thisYear), [dealRows, thisYear]);
   const bandFac = useMemo(() => bandByFacility(dealRows), [dealRows]);
   const bandRec = useMemo(() => bandByRecency(dealRows, thisYear), [dealRows, thisYear]);
+  const bandCnt = useMemo(() => bandCountByFacility(dealRows), [dealRows]);
 
   const dealCounts = useMemo(() => {
     const c: Record<string, number> = { 매매: 0, 전세: 0, 월세: 0 };
@@ -84,43 +84,8 @@ export default function TxAnalysisPage() {
             {txMeta && <span className="ml-2 text-xs text-gray-400">{txMeta.region} · {filtered.length}건 · {dl} {dealRows.length}건</span>}
           </div>
 
-          {/* 1. 준공연도별 평균 평당가 — 시설별 (표 → 차트) */}
-          <Section title={`1. 준공연도별 평균 평당가 (시설별) — ${dl}`}
-            note="선택 거래방식·준공필터 기준. 행=시설, 열=준공연도. 셀 아래 작은 숫자는 건수. 데이터 없음은 '-'.">
-            {buildFac.facilities.length === 0 ? <Empty /> : (
-              <>
-                <TableBox>
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-50 text-left text-gray-600">
-                      <tr><th className="px-3 py-2">시설</th>{buildFac.years.map((y) => <Th key={y}>{y}</Th>)}</tr>
-                    </thead>
-                    <tbody>
-                      {buildFac.facilities.map((f) => (
-                        <tr key={f} className="border-t">
-                          <td className="px-3 py-1.5 font-medium">{facilityWithBasis(f)}</td>
-                          {buildFac.years.map((y) => {
-                            const c = buildFac.data[f][y];
-                            return <Td key={y}>{c ? fmt(c.avg) : '-'}
-                              {c ? <span className="ml-1 text-[10px] text-gray-400">{c.count}</span> : null}</Td>;
-                          })}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </TableBox>
-                <BarChart title={`준공연도별 평균 평당가 (시설별, ${dl}, 천원/평)`} xName="준공연도"
-                  x={buildFac.years}
-                  series={buildFac.facilities.map((f, i) => ({
-                    name: facilityWithBasis(f),
-                    data: buildFac.years.map((y) => (buildFac.data[f][y] ? chartVal(buildFac.data[f][y].avg) : null)),
-                    color: FAC_COLORS[i % FAC_COLORS.length],
-                  }))} />
-              </>
-            )}
-          </Section>
-
-          {/* 2. 시설별 평균·상위 평균 (표 → 차트) */}
-          <Section title={`2. 시설별 평균·상위 평균 — ${dl}`}
+          {/* 1. 시설별 평균·상위 평균 (표 → 차트) */}
+          <Section title={`1. 시설별 평균·상위 평균 — ${dl}`}
             note="상위 n%평균 = 상위 백분위 이상 값들의 평균.">
             {aggRows.length === 0 ? <Empty /> : (
               <>
@@ -152,8 +117,8 @@ export default function TxAnalysisPage() {
             )}
           </Section>
 
-          {/* 3. 건물(단지)별 상위 5 (표 → 차트) */}
-          <Section title={`3. 건물(단지)별 상위 5 평균 평당가 — ${dl}`}
+          {/* 2. 건물(단지)별 상위 5 (표 → 차트) */}
+          <Section title={`2. 건물(단지)별 상위 5 평균 평당가 — ${dl}`}
             note="선택 거래방식·준공필터 기준. 실거래 건물명(아파트·오피스텔명 등)별 평균 평당가 상위 5개.">
             {topBld.length === 0 ? <Empty /> : (
               <>
@@ -181,8 +146,74 @@ export default function TxAnalysisPage() {
             )}
           </Section>
 
-          {/* 4. 시설별 × 거래방식 (표 → 차트) */}
-          <Section title="4. 시설별 × 거래방식 평균 평당가"
+          {/* 3. 시설별 × 준공연도 기간별 (표 → 차트) */}
+          <Section title={`3. 시설별 × 준공연도 기간별 평균 평당가 — ${dl}`}
+            note={`준공연도 기준(거래일과 별개). 기준연도 ${thisYear}년: 최근5년=${thisYear - 5}~${thisYear}, 최근10년=${thisYear - 10}~${thisYear}.`}>
+            {recencyRows.length === 0 ? <Empty /> : (
+              <>
+                <TableBox>
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 text-left text-gray-600">
+                      <tr><th className="px-3 py-2">시설</th><Th>최근5년</Th><Th>최근10년</Th><Th>전체 평균</Th><th className="px-3 py-2 text-right">건수</th></tr>
+                    </thead>
+                    <tbody>
+                      {recencyRows.map((r) => (
+                        <tr key={r.facility} className="border-t">
+                          <td className="px-3 py-1.5 font-medium">{facilityWithBasis(r.facility)}</td>
+                          <Td>{fmt(r.recent5)}</Td><Td>{fmt(r.recent10)}</Td><Td>{fmt(r.all)}</Td>
+                          <td className="px-3 py-1.5 text-right text-gray-500">{r.count}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </TableBox>
+                <BarChart title={`시설별 × 준공연도 기간별 평균 평당가 (${dl}, 천원/평)`} xName="시설"
+                  x={recencyRows.map((r) => facilityWithBasis(r.facility))}
+                  series={[
+                    { name: '최근5년', data: recencyRows.map((r) => chartVal(r.recent5)), color: '#1d4ed8' },
+                    { name: '최근10년', data: recencyRows.map((r) => chartVal(r.recent10)), color: '#60a5fa' },
+                    { name: '전체', data: recencyRows.map((r) => chartVal(r.all)), color: '#cbd5e1' },
+                  ]} />
+              </>
+            )}
+          </Section>
+
+          {/* 4. 준공연도 구간별 평균 (표 → 차트) */}
+          <Section title={`4. 준공연도 구간별 평균 평당가 — ${dl}`}
+            note="준공경과(기준연도−준공연도) 구간별 평균. 셀 아래 작은 숫자는 건수. 준공연도 있는 건만 집계.">
+            {bucketRows.length === 0 ? <Empty /> : (
+              <>
+                <TableBox>
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 text-left text-gray-600">
+                      <tr><th className="px-3 py-2">시설</th>{BUILD_BUCKETS.map((b) => <Th key={b.key}>{b.label}</Th>)}</tr>
+                    </thead>
+                    <tbody>
+                      {bucketRows.map((r) => (
+                        <tr key={r.facility} className="border-t">
+                          <td className="px-3 py-1.5 font-medium">{facilityWithBasis(r.facility)}</td>
+                          {BUILD_BUCKETS.map((b) => (
+                            <Td key={b.key}>{r.cells[b.key].count ? fmt(r.cells[b.key].avg) : '-'}
+                              {r.cells[b.key].count ? <span className="ml-1 text-[10px] text-gray-400">{r.cells[b.key].count}</span> : null}</Td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </TableBox>
+                <BarChart title={`준공연도 구간별 평균 평당가 (${dl}, 천원/평)`} xName="준공경과"
+                  x={BUILD_BUCKETS.map((b) => b.label)}
+                  series={bucketRows.map((r, i) => ({
+                    name: facilityWithBasis(r.facility),
+                    data: BUILD_BUCKETS.map((b) => (r.cells[b.key].count ? chartVal(r.cells[b.key].avg) : null)),
+                    color: ['#1d4ed8', '#059669', '#d97706', '#7c3aed', '#dc2626'][i % 5],
+                  }))} />
+              </>
+            )}
+          </Section>
+
+          {/* 5. 시설별 × 거래방식 (표 → 차트) */}
+          <Section title="5. 시설별 × 거래방식 평균 평당가"
             note="행=시설, 열=매매·전세환산·월세환산 평균. 준공필터만 적용. 데이터 없음은 '-'.">
             {crossRows.length === 0 ? <Empty /> : (
               <>
@@ -215,8 +246,8 @@ export default function TxAnalysisPage() {
             )}
           </Section>
 
-          {/* 5. 평형대별 평균 가격 분석 (표 → 차트) */}
-          <Section title={`5. 평형대별 평균 가격 분석 (전용면적 기준) — ${dl}`}
+          {/* 6. 평형대별 평균 가격 분석 (표 → 차트) */}
+          <Section title={`6. 평형대별 평균 가격 분석 (전용면적 기준) — ${dl}`}
             note="주거 상품(아파트·오피스텔·연립다세대·단독다가구)만 집계. 전용면적 기준 구분이며, 단독다가구는 전용면적이 제공되지 않아 연면적으로 분류. 토지·상업업무용 제외. 환산가 미산출(0)·결측 행은 평균에서 제외. 셀 아래 작은 숫자는 건수.">
             {bandFac.facilities.length === 0 ? <Empty /> : (
               <>
@@ -239,7 +270,7 @@ export default function TxAnalysisPage() {
                     </tbody>
                   </table>
                 </TableBox>
-                <BarChart title={`평형대별 평균 평당가 (${dl}, 천원/평)`} xName="평형대"
+                <BarChart title={`평형대별 평균 평당가 (${dl}, 천원/평)`} xName="평형대" wrapX
                   x={AREA_BANDS.map((b) => b.label)}
                   series={bandFac.facilities.map((f, i) => ({
                     name: facilityWithBasis(f),
@@ -250,8 +281,8 @@ export default function TxAnalysisPage() {
             )}
           </Section>
 
-          {/* 5-b. 준공연도 × 평형대별 평균 가격 (표 → 차트) */}
-          <Section title={`5-b. 준공연도 × 평형대별 평균 가격 — ${dl}`}
+          {/* 6-b. 준공연도 × 평형대별 평균 가격 (표 → 차트) */}
+          <Section title={`6-b. 준공연도 × 평형대별 평균 가격 — ${dl}`}
             note={`주거 상품만 집계(전용면적 기준, 단독다가구는 연면적으로 분류). "최근 N년"은 준공연도 기준(거래일과 별개). 기준연도 ${thisYear}년: 최근5년=${thisYear - 5}~${thisYear}, 최근10년=${thisYear - 10}~${thisYear}. 환산가 미산출(0)·결측 행 제외.`}>
             {bandRec.rows.every((row) => AREA_BANDS.every((b) => row.cells[b.key].count === 0)) ? <Empty /> : (
               <>
@@ -274,7 +305,7 @@ export default function TxAnalysisPage() {
                     </tbody>
                   </table>
                 </TableBox>
-                <BarChart title={`준공연도 × 평형대별 평균 평당가 (${dl}, 천원/평)`} xName="평형대"
+                <BarChart title={`준공연도 × 평형대별 평균 평당가 (${dl}, 천원/평)`} xName="평형대" wrapX
                   x={AREA_BANDS.map((b) => b.label)}
                   series={bandRec.rows.map((row, i) => ({
                     name: row.label,
@@ -285,67 +316,36 @@ export default function TxAnalysisPage() {
             )}
           </Section>
 
-          {/* 6. 시설별 × 준공 최근성 (표 → 차트) */}
-          <Section title={`6. 시설별 × 준공연도 최근성 — ${dl}`}
-            note={`준공연도 기준(거래일과 별개). 기준연도 ${thisYear}년: 최근5년=${thisYear - 5}~${thisYear}, 최근10년=${thisYear - 10}~${thisYear}.`}>
-            {recencyRows.length === 0 ? <Empty /> : (
+          {/* 7. 평형대별 거래 건수 (표 → 차트) */}
+          <Section title={`7. 평형대별 거래 건수 — ${dl}`}
+            note="주거 상품만 집계(전용면적 기준, 단독다가구는 연면적으로 분류). 건수 집계이므로 환산가 미산출(0) 행도 포함 — 평균 블록의 건수와 다를 수 있음.">
+            {bandCnt.facilities.length === 0 ? <Empty /> : (
               <>
                 <TableBox>
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 text-left text-gray-600">
-                      <tr><th className="px-3 py-2">시설</th><Th>최근5년</Th><Th>최근10년</Th><Th>전체 평균</Th><th className="px-3 py-2 text-right">건수</th></tr>
+                      <tr><th className="px-3 py-2">시설</th>{AREA_BANDS.map((b) => <Th key={b.key}>{b.label}</Th>)}</tr>
                     </thead>
                     <tbody>
-                      {recencyRows.map((r) => (
-                        <tr key={r.facility} className="border-t">
-                          <td className="px-3 py-1.5 font-medium">{facilityWithBasis(r.facility)}</td>
-                          <Td>{fmt(r.recent5)}</Td><Td>{fmt(r.recent10)}</Td><Td>{fmt(r.all)}</Td>
-                          <td className="px-3 py-1.5 text-right text-gray-500">{r.count}</td>
+                      {bandCnt.facilities.map((f) => (
+                        <tr key={f} className="border-t">
+                          <td className="px-3 py-1.5 font-medium">{facilityWithBasis(f)}</td>
+                          {AREA_BANDS.map((b) => <Td key={b.key}>{bandCnt.cells[f][b.key] ? bandCnt.cells[f][b.key].toLocaleString() : '-'}</Td>)}
                         </tr>
                       ))}
+                      <tr className="border-t bg-gray-50 font-medium">
+                        <td className="px-3 py-1.5">전체</td>
+                        {AREA_BANDS.map((b) => <Td key={b.key}>{bandCnt.totals[b.key] ? bandCnt.totals[b.key].toLocaleString() : '-'}</Td>)}
+                      </tr>
                     </tbody>
                   </table>
                 </TableBox>
-                <BarChart title={`시설별 × 준공 최근성 (${dl}, 천원/평)`} xName="시설"
-                  x={recencyRows.map((r) => facilityWithBasis(r.facility))}
-                  series={[
-                    { name: '최근5년', data: recencyRows.map((r) => chartVal(r.recent5)), color: '#1d4ed8' },
-                    { name: '최근10년', data: recencyRows.map((r) => chartVal(r.recent10)), color: '#60a5fa' },
-                    { name: '전체', data: recencyRows.map((r) => chartVal(r.all)), color: '#cbd5e1' },
-                  ]} />
-              </>
-            )}
-          </Section>
-
-          {/* 7. 준공연도 구간별 평균 (표 → 차트) */}
-          <Section title={`7. 준공연도 구간별 평균 평당가 — ${dl}`}
-            note="준공경과(기준연도−준공연도) 구간별 평균. 셀 아래 작은 숫자는 건수. 준공연도 있는 건만 집계.">
-            {bucketRows.length === 0 ? <Empty /> : (
-              <>
-                <TableBox>
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-50 text-left text-gray-600">
-                      <tr><th className="px-3 py-2">시설</th>{BUILD_BUCKETS.map((b) => <Th key={b.key}>{b.label}</Th>)}</tr>
-                    </thead>
-                    <tbody>
-                      {bucketRows.map((r) => (
-                        <tr key={r.facility} className="border-t">
-                          <td className="px-3 py-1.5 font-medium">{facilityWithBasis(r.facility)}</td>
-                          {BUILD_BUCKETS.map((b) => (
-                            <Td key={b.key}>{r.cells[b.key].count ? fmt(r.cells[b.key].avg) : '-'}
-                              {r.cells[b.key].count ? <span className="ml-1 text-[10px] text-gray-400">{r.cells[b.key].count}</span> : null}</Td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </TableBox>
-                <BarChart title={`준공연도 구간별 평균 평당가 (${dl}, 천원/평)`} xName="준공경과"
-                  x={BUILD_BUCKETS.map((b) => b.label)}
-                  series={bucketRows.map((r, i) => ({
-                    name: facilityWithBasis(r.facility),
-                    data: BUILD_BUCKETS.map((b) => (r.cells[b.key].count ? chartVal(r.cells[b.key].avg) : null)),
-                    color: ['#1d4ed8', '#059669', '#d97706', '#7c3aed', '#dc2626'][i % 5],
+                <BarChart title={`평형대별 거래 건수 (${dl}, 건)`} xName="평형대" wrapX
+                  x={AREA_BANDS.map((b) => b.label)}
+                  series={bandCnt.facilities.map((f, i) => ({
+                    name: facilityWithBasis(f),
+                    data: AREA_BANDS.map((b) => (bandCnt.cells[f][b.key] ? bandCnt.cells[f][b.key] : null)),
+                    color: FAC_COLORS[i % FAC_COLORS.length],
                   }))} />
               </>
             )}

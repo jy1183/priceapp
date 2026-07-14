@@ -1,6 +1,6 @@
 'use client';
 import dynamic from 'next/dynamic';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import RegionPicker, { type RegionValue } from '@/components/RegionPicker';
 import { useStore } from '@/lib/store';
 
@@ -11,17 +11,30 @@ type Pop = { region: string; period: string; total: number; ages: Age[] };
 
 const ageStart = (l: string) => { const m = l.match(/-?\d+/); return m ? parseInt(m[0], 10) : 999; };
 
-/** KOSIS 인구분석 — 조회지역 총인구·연령대 + 기준1(시도)/기준2(지역) 연령대 비율 비교 */
+/** KOSIS 인구분석 — 조회지역 총인구·연령대 + 기준1(시도)/기준2(지역) 연령대 비율 비교.
+ *  조회 결과는 스토어(localStorage)에 유지 — [초기화] 전까지 화면 이동·새로고침에도 표시. */
 export default function KosisPopulation() {
   const txForm = useStore((s) => s.txForm);
+  const kosisResult = useStore((s) => s.kosisResult);
+  const setKosisResult = useStore((s) => s.setKosisResult);
   const [region, setRegion] = useState<RegionValue>({ sido: txForm.sido, lawdCd: txForm.lawdCd, dong: txForm.dong });
-  const [data, setData] = useState<Pop | null>(null);   // 기준2: 조회지역(구)
-  const [sido, setSido] = useState<Pop | null>(null);   // 기준1: 시도
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
+  const [ctrlRestored, setCtrlRestored] = useState(false);
+
+  const data = kosisResult?.data ?? null;   // 기준2: 조회지역(구)
+  const sido = kosisResult?.sido ?? null;   // 기준1: 시도
+
+  // 저장된 조회 결과가 있으면 지역선택기를 1회 복원 (스토어는 마운트 후 rehydrate)
+  useEffect(() => {
+    if (!ctrlRestored && kosisResult) {
+      setRegion(kosisResult.pick);
+      setCtrlRestored(true);
+    }
+  }, [kosisResult, ctrlRestored]);
 
   async function load() {
-    setLoading(true); setErr(''); setData(null); setSido(null);
+    setLoading(true); setErr('');
     try {
       const sidoCd = region.lawdCd.slice(0, 2); // 시군구 5자리 앞 2자리 = 시도코드
       const [reg, sd] = await Promise.all([
@@ -29,8 +42,11 @@ export default function KosisPopulation() {
         fetch(`/api/kosis?objL1=${sidoCd}`).then((r) => r.json()),
       ]);
       if (reg.error) throw new Error(reg.error);
-      setData(reg);
-      if (!sd.error) setSido(sd);
+      setKosisResult({
+        pick: { sido: region.sido, lawdCd: region.lawdCd, dong: region.dong },
+        data: reg,
+        sido: sd.error ? null : sd,
+      });
     } catch (e) { setErr(String(e)); }
     finally { setLoading(false); }
   }
@@ -84,6 +100,11 @@ export default function KosisPopulation() {
         <button onClick={load} disabled={loading} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
           {loading ? '조회 중…' : '인구 조회'}
         </button>
+        {kosisResult && (
+          <button onClick={() => setKosisResult(null)} className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50">
+            초기화
+          </button>
+        )}
       </div>
       {err && <div className="mb-3 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">{err}</div>}
 

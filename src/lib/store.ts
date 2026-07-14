@@ -20,6 +20,21 @@ export interface SiseInputRow extends SiseRawInput { id: number }
 export interface SiseMeta { parsedCount: number; errorCount: number; }
 export interface TxMeta { facility: string; trade: string; region: string; from: string; to: string; }
 
+/** 지역분석(REB) 조회 결과 스냅샷 — 초기화 전까지 화면에 유지 */
+export interface RebPt { time: string; value: number }
+export interface RebResult {
+  statId: string; statLabel: string; unit: string; start: string; end: string;
+  sidoName: string; guName: string;
+  sidoSeries: RebPt[]; guSeries: RebPt[]; natl: RebPt[];
+}
+/** 지역분석(KOSIS 인구) 조회 결과 스냅샷 */
+export interface KosisAge { label: string; value: number }
+export interface KosisPop { region: string; period: string; total: number; ages: KosisAge[] }
+export interface KosisResult {
+  pick: { sido: string; lawdCd: string; dong: string };
+  data: KosisPop; sido: KosisPop | null;
+}
+
 interface AppState {
   projectName: string;
   config: AnalysisConfig;
@@ -31,6 +46,8 @@ interface AppState {
   tx: TxRecord[];
   txMeta: TxMeta | null;
   txForm: { sido: string; lawdCd: string; dong: string; facility: string; trade: string; from: string; to: string; period: string };
+  rebResult: RebResult | null;
+  kosisResult: KosisResult | null;
   setProjectName: (v: string) => void;
   setConfig: (c: AnalysisConfig) => void;
   setSise: (rows: SiseResult[], meta: SiseMeta) => void;
@@ -41,6 +58,8 @@ interface AppState {
   setTx: (rows: TxRecord[], meta: TxMeta) => void;
   appendTx: (rows: TxRecord[]) => void;
   setTxForm: (f: Partial<AppState['txForm']>) => void;
+  setRebResult: (r: RebResult | null) => void;
+  setKosisResult: (k: KosisResult | null) => void;
   loadSnapshot: (s: Partial<AppState>) => void;
 }
 
@@ -57,6 +76,8 @@ export const useStore = create<AppState>()(
   tx: [],
   txMeta: null,
   txForm: { sido: '서울특별시', lawdCd: '11560', dong: '영등포동8가', facility: '오피스텔', trade: '매매', from: '202501', to: '202506', period: 'all' },
+  rebResult: null,
+  kosisResult: null,
   setProjectName: (v) => set({ projectName: v }),
   setConfig: (config) => set({ config }),
   setSise: (sise, siseMeta) => set({ sise, siseMeta }),
@@ -67,6 +88,8 @@ export const useStore = create<AppState>()(
   setTx: (tx, txMeta) => set({ tx, txMeta }),
   appendTx: (rows) => set((st) => ({ tx: [...st.tx, ...rows] })),
   setTxForm: (f) => set((st) => ({ txForm: { ...st.txForm, ...f } })),
+  setRebResult: (rebResult) => set({ rebResult }),
+  setKosisResult: (kosisResult) => set({ kosisResult }),
   loadSnapshot: (s) => set(s),
     }),
     {
@@ -78,6 +101,7 @@ export const useStore = create<AppState>()(
         sise: st.sise, siseMeta: st.siseMeta,
         siseInput: st.siseInput, sisePaste: st.sisePaste, siseConfirmed: st.siseConfirmed,
         tx: st.tx, txMeta: st.txMeta, txForm: st.txForm,
+        rebResult: st.rebResult, kosisResult: st.kosisResult,
       }),
     },
   ),
