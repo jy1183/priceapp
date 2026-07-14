@@ -143,19 +143,22 @@ export function avgByBuildYearFacility(rows: TxRecord[]): BuildYearFacility {
   return { years, facilities, data };
 }
 
-/** 건물(단지)별 평균 평당가 상위 N — 시세 분석 '건물별 상위 5'와 대응 */
-export interface BuildingRow { name: string; avg: number; count: number }
+/** 건물(단지)별 평균 평당가 상위 N — 시세 분석 '건물별 상위 5'와 대응.
+ *  buildYears: 해당 건물 거래들의 준공연도(중복 제거·오름차순, 보통 1개) */
+export interface BuildingRow { name: string; avg: number; count: number; buildYears: number[] }
 export function topBuildings(rows: TxRecord[], n = 5): BuildingRow[] {
-  const m = new Map<string, number[]>();
+  const m = new Map<string, { ppa: number[]; years: Set<number> }>();
   rows.forEach((r) => {
     const nm = r.name?.trim();
     if (r.ppa != null && Number.isFinite(r.ppa) && nm && nm !== '-') {
-      if (!m.has(nm)) m.set(nm, []);
-      m.get(nm)!.push(r.ppa);
+      if (!m.has(nm)) m.set(nm, { ppa: [], years: new Set() });
+      const e = m.get(nm)!;
+      e.ppa.push(r.ppa);
+      if (r.buildYear != null) e.years.add(r.buildYear);
     }
   });
   return [...m.entries()]
-    .map(([name, v]) => ({ name, avg: mean(v), count: v.length }))
+    .map(([name, e]) => ({ name, avg: mean(e.ppa), count: e.ppa.length, buildYears: [...e.years].sort((a, b) => a - b) }))
     .sort((a, b) => b.avg - a.avg)
     .slice(0, n);
 }

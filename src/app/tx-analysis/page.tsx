@@ -23,6 +23,8 @@ const PERIODS = [
 const fmt = (v: number) => (Number.isFinite(v) ? Math.round(v).toLocaleString() : '-');
 /** 차트용: 유한값이면 반올림, 아니면 null(막대 생략) */
 const chartVal = (v: number): number | null => (Number.isFinite(v) ? Math.round(v) : null);
+/** YYYYMM → YYYY.MM (조회기간 표기용) */
+const fmtYm = (v: string) => (/^\d{6}$/.test(v) ? `${v.slice(0, 4)}.${v.slice(4)}` : v);
 
 /** ④ 실거래 분석 — 엑셀 「실거래 데이터 분석」 시트 이식.
  *  거래방식 탭 + 각 블록을 표 → 차트 순으로 표시 */
@@ -36,7 +38,7 @@ export default function TxAnalysisPage() {
   const dealRows = useMemo(() => filtered.filter((r) => r.dealType === deal), [filtered, deal]);
 
   const aggRows = useMemo(() => facilityAgg(dealRows, config.topPercentiles), [dealRows, config]);
-  const topBld = useMemo(() => topBuildings(dealRows, 5), [dealRows]);
+  const topBld = useMemo(() => topBuildings(dealRows, 10), [dealRows]);
   const crossRows = useMemo(() => facilityByDeal(filtered), [filtered]);
   const recencyRows = useMemo(() => facilityByRecency(dealRows, thisYear), [dealRows, thisYear]);
   const bucketRows = useMemo(() => facilityByAgeBucket(dealRows, thisYear), [dealRows, thisYear]);
@@ -117,21 +119,22 @@ export default function TxAnalysisPage() {
             )}
           </Section>
 
-          {/* 2. 건물(단지)별 상위 5 (표 → 차트) */}
-          <Section title={`2. 건물(단지)별 상위 5 평균 평당가 — ${dl}`}
-            note="선택 거래방식·준공필터 기준. 실거래 건물명(아파트·오피스텔명 등)별 평균 평당가 상위 5개.">
+          {/* 2. 건물(단지)별 상위 10 (표 → 차트) */}
+          <Section title={`2. 건물(단지)별 상위 10 평균 평당가 — ${dl}`}
+            note="선택 거래방식·준공필터 기준. 실거래 건물명(아파트·오피스텔명 등)별 평균 평당가 상위 10개.">
             {topBld.length === 0 ? <Empty /> : (
               <>
                 <TableBox>
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 text-left text-gray-600">
-                      <tr><th className="px-3 py-2">순위</th><th className="px-3 py-2">건물(단지)</th><th className="px-3 py-2 text-right">건수</th><Th>평균 평당가(전용)</Th></tr>
+                      <tr><th className="px-3 py-2">순위</th><th className="px-3 py-2">건물(단지)</th><th className="px-3 py-2">준공연도</th><th className="px-3 py-2 text-right">건수</th><Th>평균 평당가(전용)</Th></tr>
                     </thead>
                     <tbody>
                       {topBld.map((r, i) => (
                         <tr key={r.name} className="border-t">
                           <td className="px-3 py-1.5 font-medium">{i + 1}</td>
                           <td className="px-3 py-1.5">{r.name}</td>
+                          <td className="px-3 py-1.5">{r.buildYears.length ? r.buildYears.join('·') : '-'}</td>
                           <td className="px-3 py-1.5 text-right text-gray-500">{r.count}</td>
                           <Td>{fmt(r.avg)}</Td>
                         </tr>
@@ -139,7 +142,7 @@ export default function TxAnalysisPage() {
                     </tbody>
                   </table>
                 </TableBox>
-                <BarChart title={`건물(단지)별 상위 5 평균 평당가 (${dl}, 천원/평)`} xName="건물"
+                <BarChart title={`건물(단지)별 상위 10 평균 평당가 (${dl}, 천원/평)`} xName="건물" rotateX={30}
                   x={topBld.map((r) => r.name)}
                   series={[{ name: '평균 평당가', data: topBld.map((r) => chartVal(r.avg)), color: '#2563eb' }]} />
               </>
@@ -316,9 +319,9 @@ export default function TxAnalysisPage() {
             )}
           </Section>
 
-          {/* 7. 평형대별 거래 건수 (표 → 차트) */}
-          <Section title={`7. 평형대별 거래 건수 — ${dl}`}
-            note="주거 상품만 집계(전용면적 기준, 단독다가구는 연면적으로 분류). 건수 집계이므로 환산가 미산출(0) 행도 포함 — 평균 블록의 건수와 다를 수 있음.">
+          {/* 7. 평형대별 거래 건수 (표 → 차트) — 제목에 실거래 조회 기간 표시 */}
+          <Section title={`7. 평형대별 거래 건수 — ${dl}${txMeta ? ` (조회기간 ${fmtYm(txMeta.from)}~${fmtYm(txMeta.to)})` : ''}`}
+            note="주거 상품만 집계(전용면적 기준, 단독다가구는 연면적으로 분류). 건수 집계이므로 환산가 미산출(0) 행도 포함 — 평균 블록의 건수와 다를 수 있음. 조회기간은 ② 실거래 조회의 기본 조회 조건 기준(추가 조회분은 별도).">
             {bandCnt.facilities.length === 0 ? <Empty /> : (
               <>
                 <TableBox>
