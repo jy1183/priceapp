@@ -95,6 +95,17 @@ export function computeSiseRow(r: SiseRow, cfg: AnalysisConfig): SiseComputed {
   };
 }
 
+/** 전세 보증금 기준 평당가 (전용/공급/연면적) — 전세 행 전용. 매매·월세는 빈 객체. */
+export function jeonseDepositPpa(c: SiseComputed): { excl?: number; supply?: number; yeon?: number } {
+  if (c.deal !== '전세') return {};
+  const dep = c.amountCheonwon; // 보증금(천원)
+  return {
+    excl: c.exclPyeong ? dep / c.exclPyeong : undefined,
+    supply: c.supplyPyeong ? dep / c.supplyPyeong : undefined,
+    yeon: c.yeonPyeong ? dep / c.yeonPyeong : undefined,
+  };
+}
+
 /** 시설별 대표 평당가 기준 선택 (명세 §1-2/§2-1: 단독·상가주택=대지, 상가건물=연면적, 그 외=전용→공급) */
 const _DAEJI_FACILITIES = ['단독/다가구', '전원주택', '상가주택', '토지'];
 const _YEON_FACILITIES = ['상가건물'];
