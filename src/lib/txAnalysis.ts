@@ -1,7 +1,7 @@
 /**
  * 실거래 분석 집계 헬퍼 — 엑셀 「실거래 데이터 분석」 시트 이식
  * 근거: 20260703 계산로직_명세서.md §2-2, §2-3 / 엑셀 블록 3·4·5·6
- * - 거래방식(매매/전세환산/월세환산) 교차, 준공연도 최근성, 준공연도 구간별
+ * - 거래방식(매매/전세/월세환산) 교차, 준공연도 최근성, 준공연도 구간별
  * - 상위 n% 평균은 aggregate.ts(PERCENTILE.INC) 재사용 — 골든셋 0오차 검증됨
  */
 import { aggregate, mean, type AggregateResult } from '@/lib/calc/aggregate';
@@ -10,7 +10,7 @@ import type { TxRecord } from '@/lib/normalize';
 export type DealType = '매매' | '전세' | '월세';
 export const DEAL_TYPES: DealType[] = ['매매', '전세', '월세'];
 /** 교차표 열 라벨(전세·월세는 환산 평당가) */
-export const DEAL_LABELS: Record<DealType, string> = { 매매: '매매', 전세: '전세환산', 월세: '월세환산' };
+export const DEAL_LABELS: Record<DealType, string> = { 매매: '매매', 전세: '전세', 월세: '월세환산' };
 
 /** 시설 표준 순서 (엑셀 가격검토종합 M열) */
 export const FACILITY_ORDER = ['아파트', '오피스텔', '연립다세대', '단독다가구', '상업업무용', '토지'];

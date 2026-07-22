@@ -10,7 +10,7 @@ const ReactECharts = dynamic(() => import('echarts-for-react'), { ssr: false });
 const barLabel = { show: true, position: 'top', fontSize: 11, formatter: (p: any) => Number(p.value).toLocaleString() };
 
 /** 준공연도 구간별 평균 평당가 차트 (단일, 전체 폭)
- *  dealLabel: 선택 거래방식(매매/전세환산/월세환산) — 차트 제목에 표기 */
+ *  dealLabel: 선택 거래방식(매매/전세/월세환산) — 차트 제목에 표기 */
 export default function TxCharts({ rows, dealLabel = '매매' }: { rows: TxRecord[]; dealLabel?: string }) {
   const thisYear = new Date().getFullYear();
 
