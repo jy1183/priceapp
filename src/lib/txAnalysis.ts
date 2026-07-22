@@ -26,13 +26,6 @@ export function orderFacilities(facs: Iterable<string>): string[] {
 const ppaVals = (rows: TxRecord[]): number[] =>
   rows.filter((r) => r.ppa != null && Number.isFinite(r.ppa)).map((r) => r.ppa!) as number[];
 
-/** 준공연도 필터(전체/최근N년) — 준공연도(buildYear) 기준, 거래일과 별개(명세 결정④) */
-export function filterByRecency(rows: TxRecord[], period: string, thisYear: number): TxRecord[] {
-  if (period === 'all') return rows;
-  const n = +period;
-  return rows.filter((r) => r.buildYear != null && r.buildYear >= thisYear - n && r.buildYear <= thisYear);
-}
-
 /** A. 시설별 집계 (건수·평균·상위10/30/50) — 이미 필터된 rows 기준 */
 export interface FacilityAggRow { facility: string; agg: AggregateResult }
 export function facilityAgg(

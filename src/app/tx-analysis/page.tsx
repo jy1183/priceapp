@@ -5,7 +5,7 @@ import { useStore } from '@/lib/store';
 import BarChart from '@/components/BarChart';
 import {
   DEAL_TYPES, DEAL_LABELS, BUILD_BUCKETS, type DealType,
-  filterByRecency, facilityAgg, facilityByRecency, facilityByAgeBucket,
+  facilityAgg, facilityByRecency, facilityByAgeBucket,
   topBuildings,
 } from '@/lib/txAnalysis';
 import { AREA_BANDS, bandByFacility, bandByRecency, bandCountByFacility } from '@/lib/areaBands';
@@ -13,12 +13,6 @@ import { facilityWithBasis } from '@/lib/normalize';
 
 /** 시설별 시리즈 색상 팔레트 */
 const FAC_COLORS = ['#1d4ed8', '#059669', '#d97706', '#7c3aed', '#dc2626', '#0891b2', '#db2777', '#65a30d'];
-
-const PERIODS = [
-  { key: 'all', label: '전체' },
-  { key: '5', label: '준공 5년내' },
-  { key: '10', label: '준공 10년내' },
-] as const;
 
 const fmt = (v: number) => (Number.isFinite(v) ? Math.round(v).toLocaleString() : '-');
 /** 차트용: 유한값이면 반올림, 아니면 null(막대 생략) */
@@ -30,12 +24,10 @@ const fmtYm = (v: string) => (/^\d{6}$/.test(v) ? `${v.slice(0, 4)}.${v.slice(4)
  *  거래방식 탭 + 각 블록을 표 → 차트 순으로 표시 */
 export default function TxAnalysisPage() {
   const { tx, txMeta, config } = useStore();
-  const [period, setPeriod] = useState('all');
   const [deal, setDeal] = useState<DealType>('매매');
   const thisYear = new Date().getFullYear();
 
-  const filtered = useMemo(() => filterByRecency(tx, period, thisYear), [tx, period, thisYear]);
-  const dealRows = useMemo(() => filtered.filter((r) => r.dealType === deal), [filtered, deal]);
+  const dealRows = useMemo(() => tx.filter((r) => r.dealType === deal), [tx, deal]);
 
   const aggRows = useMemo(() => facilityAgg(dealRows, config.topPercentiles), [dealRows, config]);
   const topBld = useMemo(() => topBuildings(dealRows, 10), [dealRows]);
@@ -47,9 +39,9 @@ export default function TxAnalysisPage() {
 
   const dealCounts = useMemo(() => {
     const c: Record<string, number> = { 매매: 0, 전세: 0, 월세: 0 };
-    filtered.forEach((r) => { c[r.dealType] = (c[r.dealType] ?? 0) + 1; });
+    tx.forEach((r) => { c[r.dealType] = (c[r.dealType] ?? 0) + 1; });
     return c;
-  }, [filtered]);
+  }, [tx]);
 
   const dl = DEAL_LABELS[deal];
 
@@ -68,7 +60,7 @@ export default function TxAnalysisPage() {
         </div>
       ) : (
         <>
-          {/* 컨트롤: 거래방식 탭 + 준공연도 필터 */}
+          {/* 컨트롤: 거래방식 탭 */}
           <div className="no-print mb-4 flex flex-wrap items-center gap-2">
             <span className="text-sm text-gray-500">거래방식:</span>
             {DEAL_TYPES.map((d) => (
@@ -77,12 +69,7 @@ export default function TxAnalysisPage() {
                 {DEAL_LABELS[d]} {dealCounts[d] ? `(${dealCounts[d]})` : ''}
               </button>
             ))}
-            <span className="ml-3 text-sm text-gray-500">준공연도 필터:</span>
-            {PERIODS.map((p) => (
-              <button key={p.key} onClick={() => setPeriod(p.key)}
-                className={`rounded-full px-3 py-1 text-xs ${period === p.key ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-700'}`}>{p.label}</button>
-            ))}
-            {txMeta && <span className="ml-2 text-xs text-gray-400">{txMeta.region} · {filtered.length}건 · {dl} {dealRows.length}건</span>}
+            {txMeta && <span className="ml-2 text-xs text-gray-400">{txMeta.region} · {tx.length}건 · {dl} {dealRows.length}건</span>}
           </div>
 
           {/* 1. 시설별 평균·상위 평균 (표 → 차트) */}
@@ -120,7 +107,7 @@ export default function TxAnalysisPage() {
 
           {/* 2. 건물(단지)별 상위 10 (표 → 차트) */}
           <Section title={`2. 건물(단지)별 상위 10 평균 평당가 — ${dl}`}
-            note="선택 거래방식·준공필터 기준. 실거래 건물명(아파트·오피스텔명 등)별 평균 평당가 상위 10개.">
+            note="선택 거래방식 기준. 실거래 건물명(아파트·오피스텔명 등)별 평균 평당가 상위 10개.">
             {topBld.length === 0 ? <Empty /> : (
               <>
                 <TableBox>
