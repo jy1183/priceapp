@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useStore } from '@/lib/store';
 import { aggregate } from '@/lib/calc/aggregate';
 import { parseSiseRaw, jeonseDepositPpa } from '@/lib/calc/sise';
+import { PYEONG } from '@/lib/calc/constants';
 import { FacilityChart, BuildingChart } from '@/components/SiseAnalysisCharts';
 import BarChart from '@/components/BarChart';
 import { AREA_BANDS, SISE_RESIDENTIAL, bandAggregate, type BandInput } from '@/lib/areaBands';
@@ -198,6 +199,38 @@ export default function SiseAnalysisPage() {
     });
     return { facilities: facs.filter((f) => AREA_BANDS.some((b) => cells[f][b.key] != null)), cells };
   }, [saleBandRows, jeonseBandRows]);
+
+  // 물건별 매매/전세가 비교 리스트 — 같은 건물명(동 무시)·같은 평형(전용평, 소수 1자리 차이는 동일 취급)에
+  // 매매·전세가 둘 다 있는 경우만 추출. 각 쪽 복수 건이면 평균값 사용.
+  const propertyCompareRows = useMemo(() => {
+    const normalizeName = (raw: string) => raw.replace(/\s*\d+\s*동\s*$/, '').trim();
+    type Entry = { name: string; areaText: string; deal: string; amount: number };
+    const groups = new Map<string, Entry[]>();
+    siseInput.forEach((r) => {
+      const name = (r.name ?? '').trim();
+      if (!name) return;
+      const p = parseSiseRaw(r, config);
+      if (p.errors.length !== 0) return;
+      if (p.row.deal !== '매매' && p.row.deal !== '전세') return; // 월세 제외
+      if (!p.row.exclM2) return;
+      const pyeongRounded = Math.round(p.row.exclM2 * PYEONG);
+      const key = `${normalizeName(name)}|${pyeongRounded}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push({ name, areaText: r.areaText, deal: p.row.deal, amount: p.row.amountCheonwon });
+    });
+
+    const out: { name: string; area: string; sale: number; jeonse: number; ratio: number }[] = [];
+    groups.forEach((entries) => {
+      const saleEntries = entries.filter((e) => e.deal === '매매');
+      const jeonseEntries = entries.filter((e) => e.deal === '전세');
+      if (saleEntries.length === 0 || jeonseEntries.length === 0) return;
+      const sale = saleEntries.reduce((a, e) => a + e.amount, 0) / saleEntries.length;
+      const jeonse = jeonseEntries.reduce((a, e) => a + e.amount, 0) / jeonseEntries.length;
+      const ratio = sale > 0 ? (jeonse / sale) * 100 : NaN;
+      out.push({ name: saleEntries[0].name, area: saleEntries[0].areaText, sale, jeonse, ratio });
+    });
+    return out.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+  }, [siseInput, config]);
 
   const fmt = (v: number) => (Number.isFinite(v) ? Math.round(v).toLocaleString() : '-');
   const fmtPct = (v: number | null) => (v != null && Number.isFinite(v) ? v.toFixed(1) + '%' : '-');
@@ -564,6 +597,44 @@ export default function SiseAnalysisPage() {
                   </div>
                 </div>
               )}
+
+              {/* 물건별 매매/전세가 비교 리스트 */}
+              <div className="mt-8">
+                <h3 className="mb-1 text-lg font-semibold">물건별 매매/전세가 비교 리스트</h3>
+                <p className="mb-3 text-sm text-gray-600">
+                  같은 건물명(동 차이는 무시)·같은 평형(전용 기준, 소수점 첫째 자리 차이는 동일 평형으로 취급)에 매매가와 전세가가 모두 있는 물건만 표시합니다. 동일 조건에 매매 또는 전세가 여러 건이면 평균값을 사용합니다. 단위 천원.
+                </p>
+                {propertyCompareRows.length === 0 ? (
+                  <div className="rounded border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-600">
+                    같은 건물명·같은 평형에 매매·전세가 모두 있는 물건이 없습니다.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-lg border bg-white">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 text-left text-gray-600">
+                        <tr>
+                          <th className="px-3 py-2">시설명</th>
+                          <th className="px-3 py-2">평형대</th>
+                          <th className="px-3 py-2 text-right">매매가</th>
+                          <th className="px-3 py-2 text-right">전세가</th>
+                          <th className="px-3 py-2 text-right">전세가 비율</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {propertyCompareRows.map((r, i) => (
+                          <tr key={`${r.name}-${i}`} className="border-t">
+                            <td className="px-3 py-1.5 font-medium">{r.name}</td>
+                            <td className="px-3 py-1.5">{r.area}</td>
+                            <td className="px-3 py-1.5 text-right">{fmt(r.sale)}</td>
+                            <td className="px-3 py-1.5 text-right">{fmt(r.jeonse)}</td>
+                            <td className="px-3 py-1.5 text-right font-semibold text-violet-700">{fmtPct(r.ratio)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </>
           )}
         </>
