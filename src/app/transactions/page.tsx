@@ -1,19 +1,11 @@
 'use client';
 import { useMemo, useState } from 'react';
 import { normalize, type TxRecord } from '@/lib/normalize';
-import { aggregate } from '@/lib/calc/aggregate';
-import { DEFAULT_CONFIG } from '@/lib/calc/constants';
 import type { Facility, Trade } from '@/lib/molit';
 import RegionPicker, { type RegionValue } from '@/components/RegionPicker';
-import TxCharts from '@/components/TxCharts';
 import { useStore } from '@/lib/store';
 
 const FACILITIES: Facility[] = ['아파트', '오피스텔', '연립다세대', '단독다가구', '토지', '상업업무용'];
-const PERIODS = [
-  { key: 'all', label: '전체' },
-  { key: '5', label: '준공 5년내' },
-  { key: '10', label: '준공 10년내' },
-] as const;
 
 function monthsBetween(from: string, to: string): string[] {
   const out: string[] = [];
@@ -61,10 +53,9 @@ export default function TransactionsPage() {
   const setFacility = (v: Facility) => setTxForm({ facility: v });
   const trade = txForm.trade as Trade;
   const setTrade = (v: Trade) => setTxForm({ trade: v });
-  const from = txForm.from, to = txForm.to, period = txForm.period;
+  const from = txForm.from, to = txForm.to;
   const setFrom = (v: string) => setTxForm({ from: v });
   const setTo = (v: string) => setTxForm({ to: v });
-  const setPeriod = (v: string) => setTxForm({ period: v });
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
 
@@ -103,18 +94,6 @@ export default function TransactionsPage() {
     } catch (e) { setExtraState((s) => ({ ...s, [f.id]: { loading: false, err: String(e), added: null } })); }
   }
 
-  const thisYear = new Date().getFullYear();
-  const filtered = useMemo(() => {
-    if (period === 'all') return rows;
-    const n = +period;
-    return rows.filter((r) => r.buildYear != null && r.buildYear >= thisYear - n && r.buildYear <= thisYear);
-  }, [rows, period, thisYear]);
-
-  const agg = useMemo(() => {
-    const ppas = filtered.map((r) => r.ppa).filter((v): v is number => v != null);
-    return aggregate(ppas, DEFAULT_CONFIG.topPercentiles);
-  }, [filtered]);
-
   // 값 있는 컬럼만 노출
   const cols = useMemo(() => {
     const defs: { key: keyof TxRecord; label: string; fmt?: (v: any) => string }[] = [
@@ -130,14 +109,14 @@ export default function TransactionsPage() {
       { key: 'floor', label: '층' },
       { key: 'ppa', label: '평당가(천원/평)', fmt: (v) => v?.toLocaleString() ?? '' },
     ];
-    return defs.filter((c) => filtered.some((r) => r[c.key] != null && r[c.key] !== ''));
-  }, [filtered]);
+    return defs.filter((c) => rows.some((r) => r[c.key] != null && r[c.key] !== ''));
+  }, [rows]);
 
   return (
     <div className="max-w-6xl">
       <h1 className="mb-1 text-2xl font-bold">실거래 조회 · 분석</h1>
       <p className="mb-4 text-sm text-gray-600">
-        국토부 실거래가를 조회해 원본을 확인하고, 시설별 평당가 평균·상위% 를 집계합니다. &quot;준공 N년내&quot;는 준공연도 기준입니다.
+        국토부 실거래가를 조회해 원본을 확인합니다.
         <br />평당가 기준 — 아파트·오피스텔·연립다세대: 전용 / 단독다가구: 대지 / 토지: 계약 / 상업업무용: 연면적.
       </p>
 
@@ -217,27 +196,8 @@ export default function TransactionsPage() {
       {rows.length > 0 && (
         <>
           <div className="no-print mb-3 flex items-center gap-2">
-            <span className="text-sm text-gray-500">준공연도 필터:</span>
-            {PERIODS.map((p) => (
-              <button key={p.key} onClick={() => setPeriod(p.key)}
-                className={`rounded-full px-3 py-1 text-xs ${period === p.key ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-700'}`}>
-                {p.label}
-              </button>
-            ))}
-            <span className="ml-2 text-xs text-gray-400">기준: {facility}·{trade}, {filtered.length}건</span>
+            <span className="text-xs text-gray-400">기준: {facility}·{trade}, {rows.length}건</span>
           </div>
-
-          <div className="mb-1 grid grid-cols-4 gap-3">
-            <Stat label="평균 평당가*" v={agg.avg} />
-            <Stat label="상위10% 평균*" v={agg.top10} />
-            <Stat label="상위30% 평균*" v={agg.top30} />
-            <Stat label="상위50% 평균*" v={agg.top50} />
-          </div>
-          <p className="mb-4 text-xs text-gray-400">
-            * 평당가 면적 기준 — 아파트·오피스텔·연립다세대=전용, 단독다가구=대지, 토지=계약, 상업업무용=연면적 (누적 조회 시 시설 혼합)
-          </p>
-
-          <TxCharts rows={filtered} />
 
           <div className="overflow-x-auto rounded-lg border bg-white">
             <table className="w-full text-sm">
@@ -245,7 +205,7 @@ export default function TransactionsPage() {
                 <tr>{cols.map((c) => <th key={String(c.key)} className="whitespace-nowrap px-3 py-2 font-medium">{c.label}</th>)}</tr>
               </thead>
               <tbody>
-                {filtered.map((r, i) => (
+                {rows.map((r, i) => (
                   <tr key={i} className="border-t">
                     {cols.map((c) => (
                       <td key={String(c.key)} className="whitespace-nowrap px-3 py-1.5">
@@ -265,12 +225,4 @@ export default function TransactionsPage() {
 
 function L({ label, children }: { label: string; children: React.ReactNode }) {
   return <label className="flex flex-col gap-1 text-xs text-gray-500">{label}{children}</label>;
-}
-function Stat({ label, v }: { label: string; v: number }) {
-  return (
-    <div className="rounded-lg border bg-white p-3">
-      <div className="text-xs text-gray-500">{label}</div>
-      <div className="mt-1 text-lg font-bold">{Number.isFinite(v) ? Math.round(v).toLocaleString() : '-'}<span className="ml-1 text-xs font-normal text-gray-400">천원/평</span></div>
-    </div>
-  );
 }

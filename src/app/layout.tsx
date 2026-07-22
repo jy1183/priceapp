@@ -27,8 +27,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ko">
       <body>
         <StoreHydrator />
-        <div className="flex min-h-screen">
-          <aside className="no-print w-56 shrink-0 border-r bg-white px-3 py-4">
+        <div className="flex h-screen overflow-hidden">
+          <aside className="no-print w-56 shrink-0 overflow-y-auto border-r bg-white px-3 py-4">
             <div className="mb-4 px-2 text-lg font-bold">주변 가격 분석</div>
             <nav className="flex flex-col gap-1">
               {NAV.map((n) => (
@@ -39,7 +39,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               ))}
             </nav>
           </aside>
-          <div className="flex flex-1 flex-col">
+          <div className="flex flex-1 flex-col overflow-y-auto">
             <ProjectBar />
             <main className="flex-1 px-8 py-6">{children}</main>
           </div>
