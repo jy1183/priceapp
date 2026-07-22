@@ -5,7 +5,7 @@ import { useStore } from '@/lib/store';
 import BarChart from '@/components/BarChart';
 import {
   DEAL_TYPES, DEAL_LABELS, BUILD_BUCKETS, type DealType,
-  filterByRecency, facilityAgg, facilityByDeal, facilityByRecency, facilityByAgeBucket,
+  filterByRecency, facilityAgg, facilityByRecency, facilityByAgeBucket,
   topBuildings,
 } from '@/lib/txAnalysis';
 import { AREA_BANDS, bandByFacility, bandByRecency, bandCountByFacility } from '@/lib/areaBands';
@@ -39,7 +39,6 @@ export default function TxAnalysisPage() {
 
   const aggRows = useMemo(() => facilityAgg(dealRows, config.topPercentiles), [dealRows, config]);
   const topBld = useMemo(() => topBuildings(dealRows, 10), [dealRows]);
-  const crossRows = useMemo(() => facilityByDeal(filtered), [filtered]);
   const recencyRows = useMemo(() => facilityByRecency(dealRows, thisYear), [dealRows, thisYear]);
   const bucketRows = useMemo(() => facilityByAgeBucket(dealRows, thisYear), [dealRows, thisYear]);
   const bandFac = useMemo(() => bandByFacility(dealRows), [dealRows]);
@@ -215,42 +214,8 @@ export default function TxAnalysisPage() {
             )}
           </Section>
 
-          {/* 5. 시설별 × 거래방식 (표 → 차트) */}
-          <Section title="5. 시설별 × 거래방식 평균 평당가"
-            note="행=시설, 열=매매·전세환산·월세환산 평균. 준공필터만 적용. 데이터 없음은 '-'.">
-            {crossRows.length === 0 ? <Empty /> : (
-              <>
-                <TableBox>
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-50 text-left text-gray-600">
-                      <tr><th className="px-3 py-2">시설</th>{DEAL_TYPES.map((d) => <Th key={d}>{DEAL_LABELS[d]}</Th>)}</tr>
-                    </thead>
-                    <tbody>
-                      {crossRows.map((r) => (
-                        <tr key={r.facility} className="border-t">
-                          <td className="px-3 py-1.5 font-medium">{facilityWithBasis(r.facility)}</td>
-                          {DEAL_TYPES.map((d) => (
-                            <Td key={d}>{r.byDeal[d].count ? fmt(r.byDeal[d].avg) : '-'}
-                              {r.byDeal[d].count ? <span className="ml-1 text-[10px] text-gray-400">{r.byDeal[d].count}</span> : null}</Td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </TableBox>
-                <BarChart title="시설별 × 거래방식 평균 평당가 (천원/평)" xName="시설"
-                  x={crossRows.map((r) => facilityWithBasis(r.facility))}
-                  series={DEAL_TYPES.map((d, i) => ({
-                    name: DEAL_LABELS[d],
-                    data: crossRows.map((r) => (r.byDeal[d].count ? chartVal(r.byDeal[d].avg) : null)),
-                    color: ['#1d4ed8', '#0891b2', '#059669'][i],
-                  }))} />
-              </>
-            )}
-          </Section>
-
-          {/* 6. 평형대별 평균 가격 분석 (표 → 차트) */}
-          <Section title={`6. 평형대별 평균 가격 분석 (전용면적 기준) — ${dl}`}
+          {/* 5. 평형대별 평균 가격 분석 (표 → 차트) */}
+          <Section title={`5. 평형대별 평균 가격 분석 (전용면적 기준) — ${dl}`}
             note="주거 상품(아파트·오피스텔·연립다세대·단독다가구)만 집계. 전용면적 기준 구분이며, 단독다가구는 전용면적이 제공되지 않아 연면적으로 분류. 토지·상업업무용 제외. 환산가 미산출(0)·결측 행은 평균에서 제외. 셀 아래 작은 숫자는 건수.">
             {bandFac.facilities.length === 0 ? <Empty /> : (
               <>
@@ -284,8 +249,8 @@ export default function TxAnalysisPage() {
             )}
           </Section>
 
-          {/* 6-b. 준공연도 × 평형대별 평균 가격 (표 → 차트) */}
-          <Section title={`6-b. 준공연도 × 평형대별 평균 가격 — ${dl}`}
+          {/* 5-b. 준공연도 × 평형대별 평균 가격 (표 → 차트) */}
+          <Section title={`5-b. 준공연도 × 평형대별 평균 가격 — ${dl}`}
             note={`주거 상품만 집계(전용면적 기준, 단독다가구는 연면적으로 분류). "최근 N년"은 준공연도 기준(거래일과 별개). 기준연도 ${thisYear}년: 최근5년=${thisYear - 5}~${thisYear}, 최근10년=${thisYear - 10}~${thisYear}. 환산가 미산출(0)·결측 행 제외.`}>
             {bandRec.rows.every((row) => AREA_BANDS.every((b) => row.cells[b.key].count === 0)) ? <Empty /> : (
               <>
@@ -319,8 +284,8 @@ export default function TxAnalysisPage() {
             )}
           </Section>
 
-          {/* 7. 평형대별 거래 건수 (표 → 차트) — 제목에 실거래 조회 기간 표시 */}
-          <Section title={`7. 평형대별 거래 건수 — ${dl}${txMeta ? ` (조회기간 ${fmtYm(txMeta.from)}~${fmtYm(txMeta.to)})` : ''}`}
+          {/* 6. 평형대별 거래 건수 (표 → 차트) — 제목에 실거래 조회 기간 표시 */}
+          <Section title={`6. 평형대별 거래 건수 — ${dl}${txMeta ? ` (조회기간 ${fmtYm(txMeta.from)}~${fmtYm(txMeta.to)})` : ''}`}
             note="주거 상품만 집계(전용면적 기준, 단독다가구는 연면적으로 분류). 건수 집계이므로 환산가 미산출(0) 행도 포함 — 평균 블록의 건수와 다를 수 있음. 조회기간은 ② 실거래 조회의 기본 조회 조건 기준(추가 조회분은 별도).">
             {bandCnt.facilities.length === 0 ? <Empty /> : (
               <>

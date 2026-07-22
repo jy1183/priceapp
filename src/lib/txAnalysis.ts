@@ -44,21 +44,8 @@ export function facilityAgg(
     .filter((r) => r.agg.count > 0);
 }
 
-/** B. 시설별 × 거래방식 평균 평당가 교차표 (엑셀 블록 3) */
+/** 평균·건수 셀 (교차표 공용) */
 export interface DealCell { avg: number; count: number }
-export interface FacilityByDealRow { facility: string; byDeal: Record<DealType, DealCell> }
-export function facilityByDeal(rows: TxRecord[]): FacilityByDealRow[] {
-  return orderFacilities(rows.map((r) => r.facility))
-    .map((f) => {
-      const byDeal = {} as Record<DealType, DealCell>;
-      for (const dt of DEAL_TYPES) {
-        const v = ppaVals(rows.filter((r) => r.facility === f && r.dealType === dt));
-        byDeal[dt] = { avg: v.length ? mean(v) : NaN, count: v.length };
-      }
-      return { facility: f, byDeal };
-    })
-    .filter((r) => DEAL_TYPES.some((dt) => r.byDeal[dt].count > 0));
-}
 
 /** C. 시설별 × 준공 최근성 (최근5년/최근10년/전체) — 선택 거래방식 (엑셀 블록 4·2) */
 export interface RecencyRow { facility: string; recent5: number; recent10: number; all: number; count: number }
