@@ -1,12 +1,12 @@
 'use client';
-// 종합검토 결과 — ① 매매 시세vs실거래, ② 전세가 시세vs실거래, ③ 시세 평형대별 매매/전세 비교
+// 종합검토 결과 — ① 매매 시세vs실거래, ② 전세가 시세vs실거래, ③ 전세가율 검토, ④ 시세·⑤ 실거래 평형대별 매매/전세 비교
 import { Fragment, useMemo } from 'react';
 import { useStore } from '@/lib/store';
 import { buildSummaryRows, buildJeonseSummaryRows, type SummaryRow } from '@/lib/summary';
 import ExportBar from '@/components/ExportBar';
 import BarChart from '@/components/BarChart';
 import { parseSiseRaw, jeonseDepositPpa } from '@/lib/calc/sise';
-import { AREA_BANDS, SISE_RESIDENTIAL, bandAggregate, type BandInput } from '@/lib/areaBands';
+import { AREA_BANDS, SISE_RESIDENTIAL, bandAggregate, bandByFacility, type BandInput, type BandByFacilityResult } from '@/lib/areaBands';
 
 /** 평형대 차트용 시설 시리즈 색상 — 매매(진한 계열) */
 const SALE_COLORS = ['#1d4ed8', '#d97706', '#7c3aed', '#dc2626', '#0f766e', '#4d7c0f'];
@@ -17,8 +17,8 @@ const fmt = (v: number) => (Number.isFinite(v) ? Math.round(v).toLocaleString() 
 const fmtPct = (v: number) => (Number.isFinite(v) ? v.toFixed(1) + '%' : '-');
 
 /** 대분류 섹션 구분 헤더 */
-function SectionHead({ tone, title, desc }: { tone: 'blue' | 'emerald' | 'violet' | 'amber'; title: string; desc: string }) {
-  const c = { blue: 'border-blue-500', emerald: 'border-emerald-500', violet: 'border-violet-500', amber: 'border-amber-500' }[tone];
+function SectionHead({ tone, title, desc }: { tone: 'blue' | 'emerald' | 'violet' | 'amber' | 'rose'; title: string; desc: string }) {
+  const c = { blue: 'border-blue-500', emerald: 'border-emerald-500', violet: 'border-violet-500', amber: 'border-amber-500', rose: 'border-rose-500' }[tone];
   return (
     <div className={`mt-10 mb-4 border-l-4 ${c} pl-3`}>
       <h2 className="text-xl font-bold">{title}</h2>
@@ -64,6 +64,95 @@ function CompareTable({ rows }: { rows: { f: string; sa: SummaryRow['sise']; ta:
         </tbody>
       </table>
     </div>
+  );
+}
+
+/** 평형대별×시설별 매매/전세/전세가율 비교 블록 — 시세(④)·실거래(⑤) 공용 (표 + 그룹 막대차트) */
+function BandCompareBlock({ sale, jeonse, chartTitle, emptyMsg }: {
+  sale: BandByFacilityResult; jeonse: BandByFacilityResult; chartTitle: string; emptyMsg: string;
+}) {
+  const facs = [...sale.facilities];
+  jeonse.facilities.forEach((f) => { if (!facs.includes(f)) facs.push(f); });
+
+  const cell = (band: BandByFacilityResult, f: string, key: string) => {
+    const c = band.cells[f]?.[key];
+    return c && c.count > 0 ? (
+      <>
+        {fmt(c.avg)}
+        <span className="ml-1 text-[10px] text-gray-400">{c.count}</span>
+      </>
+    ) : '-';
+  };
+
+  if (facs.length === 0) {
+    return (
+      <div className="rounded border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-600">{emptyMsg}</div>
+    );
+  }
+  return (
+    <>
+      <div className="overflow-x-auto rounded-lg border bg-white">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 text-left text-gray-600">
+            <tr>
+              <th className="px-3 py-2">시설</th>
+              <th className="px-3 py-2">구분</th>
+              {AREA_BANDS.map((b) => <th key={b.key} className="px-3 py-2 text-right">{b.label}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {facs.map((f) => (
+              <Fragment key={f}>
+                <tr className="border-t">
+                  <td rowSpan={3} className="px-3 py-1.5 align-top font-medium">{f}</td>
+                  <td className="px-3 py-1.5 text-blue-700">매매</td>
+                  {AREA_BANDS.map((b) => (
+                    <td key={b.key} className="px-3 py-1.5 text-right">{cell(sale, f, b.key)}</td>
+                  ))}
+                </tr>
+                <tr>
+                  <td className="px-3 py-1.5 text-emerald-700">전세</td>
+                  {AREA_BANDS.map((b) => (
+                    <td key={b.key} className="px-3 py-1.5 text-right">{cell(jeonse, f, b.key)}</td>
+                  ))}
+                </tr>
+                <tr className="bg-violet-50/40">
+                  <td className="px-3 py-1.5 font-medium text-violet-700">전세가율</td>
+                  {AREA_BANDS.map((b) => {
+                    const s = sale.cells[f]?.[b.key];
+                    const j = jeonse.cells[f]?.[b.key];
+                    const v = s && j && s.count > 0 && j.count > 0 && s.avg > 0 ? (j.avg / s.avg) * 100 : NaN;
+                    return <td key={b.key} className="px-3 py-1.5 text-right font-semibold text-violet-700">{fmtPct(v)}</td>;
+                  })}
+                </tr>
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="mt-4">
+        <BarChart title={chartTitle} xName="평형대" wrapX
+          x={AREA_BANDS.map((b) => b.label)}
+          series={facs.flatMap((f, i) => [
+            {
+              name: `${f} 매매`,
+              data: AREA_BANDS.map((b) => {
+                const c = sale.cells[f]?.[b.key];
+                return c && c.count > 0 ? Math.round(c.avg) : null;
+              }),
+              color: SALE_COLORS[i % SALE_COLORS.length],
+            },
+            {
+              name: `${f} 전세`,
+              data: AREA_BANDS.map((b) => {
+                const c = jeonse.cells[f]?.[b.key];
+                return c && c.count > 0 ? Math.round(c.avg) : null;
+              }),
+              color: JEONSE_COLORS[i % JEONSE_COLORS.length],
+            },
+          ])} />
+      </div>
+    </>
   );
 }
 
@@ -134,30 +223,19 @@ export default function SummaryPage() {
     return bandAggregate(inputs);
   }, [siseInput, config]);
 
-  // 매매·전세 평형대 시설 합집합 (매매 순서 우선)
-  const bandFacs = useMemo(() => {
-    const out = [...saleBand.facilities];
-    jeonseBand.facilities.forEach((f) => { if (!out.includes(f)) out.push(f); });
-    return out;
-  }, [saleBand, jeonseBand]);
+  // ── 5. 실거래: 평형대별·시설별 매매가/전세가 집계 (주거 시설, 전용면적 기준 — 단독다가구는 연면적) ──
+  const txSaleBand = useMemo(() => bandByFacility(tx.filter((t) => t.dealType === '매매')), [tx]);
+  const txJeonseBand = useMemo(() => bandByFacility(tx.filter((t) => t.dealType === '전세')), [tx]);
 
-  const bandCell = (band: typeof saleBand, f: string, key: string) => {
-    const c = band.cells[f]?.[key];
-    return c && c.count > 0 ? (
-      <>
-        {fmt(c.avg)}
-        <span className="ml-1 text-[10px] text-gray-400">{c.count}</span>
-      </>
-    ) : '-';
-  };
-
-  const hasAny = rows.length > 0 || jeonseRows.length > 0 || bandFacs.length > 0;
+  const hasAny = rows.length > 0 || jeonseRows.length > 0
+    || saleBand.facilities.length > 0 || jeonseBand.facilities.length > 0
+    || txSaleBand.facilities.length > 0 || txJeonseBand.facilities.length > 0;
 
   return (
     <div className="max-w-6xl">
       <h1 className="mb-1 text-2xl font-bold">종합 검토 — 시세 vs 실거래</h1>
       <p className="mb-4 text-sm text-gray-600">
-        시세 분석(확정)과 실거래 조회 결과를 매매·전세로 구분해 시설별 전용 평당가로 비교하고, 시세 데이터의 평형대별 매매가/전세가를 비교합니다. 단위 천원/평.
+        시세 분석(확정)과 실거래 조회 결과를 매매·전세로 구분해 시설별 전용 평당가로 비교하고, 시세·실거래 각각의 평형대별 매매가/전세가를 비교합니다. 단위 천원/평.
       </p>
 
       <ExportBar />
@@ -304,75 +382,17 @@ export default function SummaryPage() {
           <SectionHead tone="amber" title="4. 시세 — 평형대별·시설별 매매가/전세가 비교"
             desc="시세 데이터만으로 주거 시설의 평형대별(전용면적 기준) 매매·전세 평균 평당가를 비교하고, 각 시설 하단에 평형대별 전세가율(전세가 ÷ 매매가)을 표시합니다. 매매는 매매 거래만(월세환산 제외), 전세는 보증금 기준입니다. 단위 천원/평." />
 
-          {bandFacs.length === 0 ? (
-            <div className="rounded border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-600">
-              평형대별로 집계할 시세 데이터가 없습니다.
-            </div>
-          ) : (
-            <>
-              <div className="overflow-x-auto rounded-lg border bg-white">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 text-left text-gray-600">
-                    <tr>
-                      <th className="px-3 py-2">시설</th>
-                      <th className="px-3 py-2">구분</th>
-                      {AREA_BANDS.map((b) => <th key={b.key} className="px-3 py-2 text-right">{b.label}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {bandFacs.map((f) => (
-                      <Fragment key={f}>
-                        <tr className="border-t">
-                          <td rowSpan={3} className="px-3 py-1.5 align-top font-medium">{f}</td>
-                          <td className="px-3 py-1.5 text-blue-700">매매</td>
-                          {AREA_BANDS.map((b) => (
-                            <td key={b.key} className="px-3 py-1.5 text-right">{bandCell(saleBand, f, b.key)}</td>
-                          ))}
-                        </tr>
-                        <tr>
-                          <td className="px-3 py-1.5 text-emerald-700">전세</td>
-                          {AREA_BANDS.map((b) => (
-                            <td key={b.key} className="px-3 py-1.5 text-right">{bandCell(jeonseBand, f, b.key)}</td>
-                          ))}
-                        </tr>
-                        <tr className="bg-violet-50/40">
-                          <td className="px-3 py-1.5 font-medium text-violet-700">전세가율</td>
-                          {AREA_BANDS.map((b) => {
-                            const s = saleBand.cells[f]?.[b.key];
-                            const j = jeonseBand.cells[f]?.[b.key];
-                            const v = s && j && s.count > 0 && j.count > 0 && s.avg > 0 ? (j.avg / s.avg) * 100 : NaN;
-                            return <td key={b.key} className="px-3 py-1.5 text-right font-semibold text-violet-700">{fmtPct(v)}</td>;
-                          })}
-                        </tr>
-                      </Fragment>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="mt-4">
-                <BarChart title="평형대별 매매·전세 평균 평당가 (전용면적 기준, 천원/평)" xName="평형대" wrapX
-                  x={AREA_BANDS.map((b) => b.label)}
-                  series={bandFacs.flatMap((f, i) => [
-                    {
-                      name: `${f} 매매`,
-                      data: AREA_BANDS.map((b) => {
-                        const c = saleBand.cells[f]?.[b.key];
-                        return c && c.count > 0 ? Math.round(c.avg) : null;
-                      }),
-                      color: SALE_COLORS[i % SALE_COLORS.length],
-                    },
-                    {
-                      name: `${f} 전세`,
-                      data: AREA_BANDS.map((b) => {
-                        const c = jeonseBand.cells[f]?.[b.key];
-                        return c && c.count > 0 ? Math.round(c.avg) : null;
-                      }),
-                      color: JEONSE_COLORS[i % JEONSE_COLORS.length],
-                    },
-                  ])} />
-              </div>
-            </>
-          )}
+          <BandCompareBlock sale={saleBand} jeonse={jeonseBand}
+            chartTitle="시세 평형대별 매매·전세 평균 평당가 (전용면적 기준, 천원/평)"
+            emptyMsg="평형대별로 집계할 시세 데이터가 없습니다." />
+
+          {/* ═══════════ 5. 실거래 — 평형대별 매매가/전세가 비교 ═══════════ */}
+          <SectionHead tone="rose" title="5. 실거래 — 평형대별·시설별 매매가/전세가 비교"
+            desc="실거래 조회 결과만으로 주거 시설의 평형대별(전용면적 기준, 단독다가구는 연면적) 매매·전세 평균 평당가를 비교하고, 각 시설 하단에 평형대별 전세가율(전세가 ÷ 매매가)을 표시합니다. 전세는 보증금 기준이며 월세 실거래는 제외합니다. 단위 천원/평." />
+
+          <BandCompareBlock sale={txSaleBand} jeonse={txJeonseBand}
+            chartTitle="실거래 평형대별 매매·전세 평균 평당가 (전용면적 기준, 천원/평)"
+            emptyMsg="평형대별로 집계할 실거래 데이터가 없습니다. (매매·전월세 실거래 조회를 실행했는지 확인하세요.)" />
         </>
       )}
       {txMeta && <p className="mt-4 text-xs text-gray-400">실거래 기준: {txMeta.region} · {txMeta.facility}·{txMeta.trade} · {txMeta.from}~{txMeta.to}</p>}
