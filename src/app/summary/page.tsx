@@ -1,5 +1,5 @@
 'use client';
-// 종합검토 결과 — ① 매매 시세vs실거래, ② 전세가 시세vs실거래, ③ 전세가율 검토, ④ 시세·⑤ 실거래 평형대별 매매/전세 비교
+// 종합검토 결과 — ① 매매 시세vs실거래, ② 전세가 시세vs실거래, ③ 전세가율 검토, ④ 시세·⑤ 실거래 평형대별 매매/전세 비교, ⑥ 매매가vs환산가, ⑦ 환산가 자본환원율 보정
 import { Fragment, useMemo } from 'react';
 import { useStore } from '@/lib/store';
 import { buildSummaryRows, buildJeonseSummaryRows, type SummaryRow } from '@/lib/summary';
@@ -7,6 +7,7 @@ import ExportBar from '@/components/ExportBar';
 import BarChart from '@/components/BarChart';
 import { parseSiseRaw, jeonseDepositPpa } from '@/lib/calc/sise';
 import { AREA_BANDS, SISE_RESIDENTIAL, bandAggregate, bandByFacility, type BandInput, type BandByFacilityResult } from '@/lib/areaBands';
+import { buildConvertCompare, buildCapRateFix } from '@/lib/summaryConvert';
 
 /** 평형대 차트용 시설 시리즈 색상 — 매매(진한 계열) */
 const SALE_COLORS = ['#1d4ed8', '#d97706', '#7c3aed', '#dc2626', '#0f766e', '#4d7c0f'];
@@ -17,8 +18,8 @@ const fmt = (v: number) => (Number.isFinite(v) ? Math.round(v).toLocaleString() 
 const fmtPct = (v: number) => (Number.isFinite(v) ? v.toFixed(1) + '%' : '-');
 
 /** 대분류 섹션 구분 헤더 */
-function SectionHead({ tone, title, desc }: { tone: 'blue' | 'emerald' | 'violet' | 'amber' | 'rose'; title: string; desc: string }) {
-  const c = { blue: 'border-blue-500', emerald: 'border-emerald-500', violet: 'border-violet-500', amber: 'border-amber-500', rose: 'border-rose-500' }[tone];
+function SectionHead({ tone, title, desc }: { tone: 'blue' | 'emerald' | 'violet' | 'amber' | 'rose' | 'cyan' | 'slate'; title: string; desc: string }) {
+  const c = { blue: 'border-blue-500', emerald: 'border-emerald-500', violet: 'border-violet-500', amber: 'border-amber-500', rose: 'border-rose-500', cyan: 'border-cyan-500', slate: 'border-slate-500' }[tone];
   return (
     <div className={`mt-10 mb-4 border-l-4 ${c} pl-3`}>
       <h2 className="text-xl font-bold">{title}</h2>
@@ -227,6 +228,11 @@ export default function SummaryPage() {
   const txSaleBand = useMemo(() => bandByFacility(tx.filter((t) => t.dealType === '매매')), [tx]);
   const txJeonseBand = useMemo(() => bandByFacility(tx.filter((t) => t.dealType === '전세')), [tx]);
 
+  // ── 6·7. 실거래: 매매가 vs 환산가 비교 및 자본환원율 보정 (주거 시설 전체 통합) ──
+  const thisYear = new Date().getFullYear();
+  const convCompare = useMemo(() => buildConvertCompare(tx, thisYear), [tx, thisYear]);
+  const capFix = useMemo(() => buildCapRateFix(tx, thisYear, config), [tx, thisYear, config]);
+
   const hasAny = rows.length > 0 || jeonseRows.length > 0
     || saleBand.facilities.length > 0 || jeonseBand.facilities.length > 0
     || txSaleBand.facilities.length > 0 || txJeonseBand.facilities.length > 0;
@@ -393,6 +399,116 @@ export default function SummaryPage() {
           <BandCompareBlock sale={txSaleBand} jeonse={txJeonseBand}
             chartTitle="실거래 평형대별 매매·전세 평균 평당가 (전용면적 기준, 천원/평)"
             emptyMsg="평형대별로 집계할 실거래 데이터가 없습니다. (매매·전월세 실거래 조회를 실행했는지 확인하세요.)" />
+
+          {/* ═══════════ 6. 실거래 — 매매가 vs 환산가 비교 ═══════════ */}
+          <SectionHead tone="cyan" title="6. 실거래 — 매매가 vs 환산가 비교"
+            desc={`주거 실거래 전체를 통합해 매매가 평균과 월세 환산가(자본환원율 ${(config.capRate * 100).toFixed(1)}%, 보증금운영수익률 ${(config.depositYield * 100).toFixed(1)}%) 평균을 전용 평당가로 비교합니다. '준공 최근 5년'은 준공연도 기준(기준연도 ${thisYear}년, ${thisYear - 5}~${thisYear}년). 차이 비율 = (환산가 − 매매가) ÷ 매매가. 단위 천원/평.`} />
+
+          {convCompare.saleAvgCount === 0 && convCompare.convAvgCount === 0 ? (
+            <div className="rounded border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-600">
+              비교할 주거 실거래(매매·월세) 데이터가 없습니다. (실거래 조회를 매매·월세로 실행했는지 확인하세요.)
+            </div>
+          ) : (
+            <>
+              <div className="overflow-x-auto rounded-lg border bg-white">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-gray-600">
+                    <tr>
+                      <th className="px-3 py-2 text-left">구분</th>
+                      <th className="border-l px-3 py-2 text-right">평균 (전용, 천원/평)</th>
+                      <th className="border-l px-3 py-2 text-right">준공 최근 5년 (전용, 천원/평)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-t">
+                      <td className="px-3 py-1.5 font-medium text-blue-700">매매가</td>
+                      <td className="border-l px-3 py-1.5 text-right">{fmt(convCompare.saleAvg)}<span className="ml-1 text-[10px] text-gray-400">{convCompare.saleAvgCount}</span></td>
+                      <td className="border-l px-3 py-1.5 text-right">{fmt(convCompare.saleRecent5)}<span className="ml-1 text-[10px] text-gray-400">{convCompare.saleRecent5Count}</span></td>
+                    </tr>
+                    <tr className="border-t">
+                      <td className="px-3 py-1.5 font-medium text-cyan-700">환산가 (자본환원율 {(config.capRate * 100).toFixed(1)}%)</td>
+                      <td className="border-l px-3 py-1.5 text-right">{fmt(convCompare.convAvg)}<span className="ml-1 text-[10px] text-gray-400">{convCompare.convAvgCount}</span></td>
+                      <td className="border-l px-3 py-1.5 text-right">{fmt(convCompare.convRecent5)}<span className="ml-1 text-[10px] text-gray-400">{convCompare.convRecent5Count}</span></td>
+                    </tr>
+                    <tr className="border-t bg-gray-50/60">
+                      <td className="px-3 py-1.5 font-medium text-gray-700">차이 비율 (환산가 − 매매가)</td>
+                      <td className={`border-l px-3 py-1.5 text-right font-semibold ${Number.isFinite(convCompare.gapAvg) ? (convCompare.gapAvg >= 0 ? 'text-red-600' : 'text-blue-600') : 'text-gray-400'}`}>
+                        {Number.isFinite(convCompare.gapAvg) ? `${convCompare.gapAvg >= 0 ? '+' : ''}${convCompare.gapAvg.toFixed(1)}%` : '-'}
+                      </td>
+                      <td className={`border-l px-3 py-1.5 text-right font-semibold ${Number.isFinite(convCompare.gapRecent5) ? (convCompare.gapRecent5 >= 0 ? 'text-red-600' : 'text-blue-600') : 'text-gray-400'}`}>
+                        {Number.isFinite(convCompare.gapRecent5) ? `${convCompare.gapRecent5 >= 0 ? '+' : ''}${convCompare.gapRecent5.toFixed(1)}%` : '-'}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-4">
+                <BarChart title="매매가 vs 환산가 평균 평당가 (전용, 천원/평)" xName="구분"
+                  x={['평균', '준공 최근 5년']}
+                  series={[
+                    { name: '매매가', data: [convCompare.saleAvg, convCompare.saleRecent5].map((v) => (Number.isFinite(v) ? Math.round(v) : null)), color: '#1d4ed8' },
+                    { name: `환산가 (${(config.capRate * 100).toFixed(1)}%)`, data: [convCompare.convAvg, convCompare.convRecent5].map((v) => (Number.isFinite(v) ? Math.round(v) : null)), color: '#0891b2' },
+                  ]} />
+              </div>
+            </>
+          )}
+
+          {/* ═══════════ 7. 실거래 — 환산가 자본환원율 보정 ═══════════ */}
+          <SectionHead tone="slate" title="7. 실거래 — 환산가 자본환원율 보정"
+            desc={`6번의 환산가를 매매가 수준에 맞추는 자본환원율을 산출합니다. 보증금운영수익률은 ${(config.depositYield * 100).toFixed(1)}%로 고정하고 자본환원율만 조정하며, 평균·준공 최근 5년을 각각 산출합니다. 보정 자본환원율 = 수익항 ÷ (매매가 − 보증금원금항).`} />
+
+          {convCompare.saleAvgCount === 0 || convCompare.convAvgCount === 0 ? (
+            <div className="rounded border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-600">
+              보정을 산출할 주거 실거래(매매·월세)가 모두 필요합니다.
+            </div>
+          ) : (
+            <>
+              <div className="mb-3 flex flex-wrap gap-3">
+                <div className="rounded-lg border border-slate-300 bg-slate-50 px-4 py-2 text-sm">
+                  <span className="text-slate-600">보정 자본환원율 · 평균</span>
+                  <span className="ml-2 font-bold text-slate-800">{Number.isFinite(capFix.xAvg) ? `${(capFix.xAvg * 100).toFixed(2)}%` : '산출 불가'}</span>
+                </div>
+                <div className="rounded-lg border border-slate-300 bg-slate-50 px-4 py-2 text-sm">
+                  <span className="text-slate-600">보정 자본환원율 · 준공 최근 5년</span>
+                  <span className="ml-2 font-bold text-slate-800">{Number.isFinite(capFix.xRecent5) ? `${(capFix.xRecent5 * 100).toFixed(2)}%` : '산출 불가'}</span>
+                </div>
+              </div>
+              <div className="overflow-x-auto rounded-lg border bg-white">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-gray-600">
+                    <tr>
+                      <th rowSpan={2} className="px-3 py-2 text-left align-bottom">자본환원율</th>
+                      <th colSpan={2} className="border-l px-3 py-1 text-center">매매가 (전용, 천원/평)</th>
+                      <th colSpan={2} className="border-l px-3 py-1 text-center">환산가 (전용, 천원/평)</th>
+                    </tr>
+                    <tr className="text-xs">
+                      <th className="border-l px-2 py-1 text-right">평균</th><th className="px-2 py-1 text-right">준공 최근 5년</th>
+                      <th className="border-l px-2 py-1 text-right">평균</th><th className="px-2 py-1 text-right">준공 최근 5년</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-t">
+                      <td className="px-3 py-1.5 font-medium">{(capFix.base * 100).toFixed(1)}% (현재)</td>
+                      <td className="border-l px-2 py-1.5 text-right">{fmt(capFix.saleAvg)}</td>
+                      <td className="px-2 py-1.5 text-right">{fmt(capFix.saleRecent5)}</td>
+                      <td className="border-l px-2 py-1.5 text-right">{fmt(capFix.conv7Avg)}</td>
+                      <td className="px-2 py-1.5 text-right">{fmt(capFix.conv7Recent5)}</td>
+                    </tr>
+                    <tr className="border-t bg-slate-50/60">
+                      <td className="px-3 py-1.5 font-medium text-slate-700">보정 (평균 {Number.isFinite(capFix.xAvg) ? `${(capFix.xAvg * 100).toFixed(2)}%` : '-'} / 준공5년 {Number.isFinite(capFix.xRecent5) ? `${(capFix.xRecent5 * 100).toFixed(2)}%` : '-'})</td>
+                      <td className="border-l px-2 py-1.5 text-right">{fmt(capFix.saleAvg)}</td>
+                      <td className="px-2 py-1.5 text-right">{fmt(capFix.saleRecent5)}</td>
+                      <td className="border-l px-2 py-1.5 text-right font-semibold text-slate-800">{fmt(capFix.convXAvg)}</td>
+                      <td className="px-2 py-1.5 text-right font-semibold text-slate-800">{fmt(capFix.convXRecent5)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-2 text-xs text-gray-500">
+                보정 자본환원율 적용 시 환산가 평균이 매매가 평균과 일치하도록 산출됩니다(검산). 매매가가 보증금 원금 환산액보다 낮으면 양수 자본환원율 해가 없어 '산출 불가'로 표시됩니다.
+              </p>
+            </>
+          )}
         </>
       )}
       {txMeta && <p className="mt-4 text-xs text-gray-400">실거래 기준: {txMeta.region} · {txMeta.facility}·{txMeta.trade} · {txMeta.from}~{txMeta.to}</p>}
