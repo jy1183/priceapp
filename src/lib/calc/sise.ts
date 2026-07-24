@@ -76,7 +76,7 @@ export function computeSiseRow(r: SiseRow, cfg: AnalysisConfig): SiseComputed {
 
   let convertedSale = 0;
   if (r.deal === '매매') convertedSale = r.amountCheonwon;
-  else if (r.deal === '월세') convertedSale = (yearRent + r.amountCheonwon * cfg.depositYield) / cfg.capRate;
+  else if (r.deal === '월세') convertedSale = (yearRent + r.amountCheonwon * cfg.depositYield) / cfg.capRate + r.amountCheonwon; // 보증금 원금 포함
   else convertedSale = 0; // 전세
 
   return {
