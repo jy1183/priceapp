@@ -28,18 +28,28 @@ interface QueryForm {
   facility: Facility; trade: Trade; from: string; to: string;
 }
 
-/** 국토부 실거래 조회 (기본·추가 조회 공용 헬퍼) */
+/** 동시 실행 수를 제한하며 병렬 map (외부 API 과부하 방지, 입력 순서 유지) */
+async function mapLimit<T, R>(items: T[], limit: number, fn: (x: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let i = 0;
+  async function worker() {
+    while (i < items.length) { const idx = i++; out[idx] = await fn(items[idx]); }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
+}
+
+/** 국토부 실거래 조회 (기본·추가 조회 공용 헬퍼) — 월별 요청 병렬화 */
 async function fetchTx(f: Pick<QueryForm, 'lawdCd' | 'dong' | 'facility' | 'trade' | 'from' | 'to'>): Promise<TxRecord[]> {
   const months = monthsBetween(f.from, f.to);
-  const all: TxRecord[] = [];
-  for (const ymd of months) {
+  const perMonth = await mapLimit(months, 6, async (ymd) => {
     const p = new URLSearchParams({ facility: f.facility, trade: f.trade, lawdCd: f.lawdCd, ymd, dong: f.dong });
     const res = await fetch(`/api/molit?${p}`);
     const j = await res.json();
     if (j.error) throw new Error(j.error);
-    for (const it of j.items ?? []) all.push(normalize(f.facility, f.trade, it));
-  }
-  return all;
+    return (j.items ?? []).map((it: Record<string, unknown>) => normalize(f.facility, f.trade, it));
+  });
+  return perMonth.flat();
 }
 
 let _qid = 1;

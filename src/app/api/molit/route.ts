@@ -29,24 +29,36 @@ export async function GET(req: NextRequest) {
   if (!key) return NextResponse.json({ error: 'MOLIT_API_KEY 미설정' }, { status: 500 });
 
   const items: Record<string, unknown>[] = [];
-  let pageNo = 1;
-  const numOfRows = 100;
+  const numOfRows = 1000; // 대부분의 구·월 조합은 1페이지로 완결
+
+  // 한 페이지 조회 → response.body 반환
+  async function fetchBody(pageNo: number) {
+    const url = `${base}?serviceKey=${key}&LAWD_CD=${lawdCd}&DEAL_YMD=${ymd}&pageNo=${pageNo}&numOfRows=${numOfRows}`;
+    const res = await fetch(url, { headers: { Accept: 'application/xml' }, next: { revalidate } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return parser.parse(await res.text())?.response?.body;
+  }
+  // 페이지 body에서 동 필터링해 items에 누적 → 필터 전 원본 행 수 반환
+  function collect(body: any): number {
+    let raw = body?.items?.item ?? [];
+    if (!Array.isArray(raw)) raw = raw ? [raw] : [];
+    for (const it of raw) {
+      if (!dong || String(it.umdNm ?? '').trim() === dong) items.push(it);
+    }
+    return raw.length;
+  }
+
   try {
-    while (pageNo <= 50) {
-      const url = `${base}?serviceKey=${key}&LAWD_CD=${lawdCd}&DEAL_YMD=${ymd}&pageNo=${pageNo}&numOfRows=${numOfRows}`;
-      const res = await fetch(url, { headers: { Accept: 'application/xml' }, next: { revalidate } });
-      if (!res.ok) return NextResponse.json({ error: `HTTP ${res.status}` }, { status: 502 });
-      const xml = await res.text();
-      const doc = parser.parse(xml);
-      const body = doc?.response?.body;
-      const total = Number(body?.totalCount ?? 0);
-      let raw = body?.items?.item ?? [];
-      if (!Array.isArray(raw)) raw = raw ? [raw] : [];
-      for (const it of raw) {
-        if (!dong || String(it.umdNm ?? '').trim() === dong) items.push(it);
-      }
-      if (raw.length < numOfRows || pageNo * numOfRows >= total) break;
-      pageNo += 1;
+    // 1페이지로 totalCount·실제 페이지 크기 파악 후, 나머지 페이지는 병렬 조회
+    const first = await fetchBody(1);
+    const pageSize = collect(first) || numOfRows; // API가 numOfRows를 축소해도 실제 반환 크기 사용
+    const total = Number(first?.totalCount ?? 0);
+    const lastPage = Math.min(50, Math.ceil(total / pageSize));
+    if (lastPage > 1) {
+      const rest = await Promise.all(
+        Array.from({ length: lastPage - 1 }, (_, i) => fetchBody(i + 2)),
+      );
+      rest.forEach(collect);
     }
     return NextResponse.json({ facility, trade, lawdCd, ymd, dong, count: items.length, items });
   } catch (e) {
