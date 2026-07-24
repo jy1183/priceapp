@@ -7,6 +7,9 @@ import { useStore } from '@/lib/store';
 
 const FACILITIES: Facility[] = ['아파트', '오피스텔', '연립다세대', '단독다가구', '토지', '상업업무용'];
 
+/** 헤더 클릭 드롭다운 필터를 지원하는 컬럼 */
+const FILTERABLE = new Set<keyof TxRecord>(['name', 'dealType']);
+
 function monthsBetween(from: string, to: string): string[] {
   const out: string[] = [];
   let y = +from.slice(0, 4), m = +from.slice(4, 6);
@@ -59,12 +62,17 @@ export default function TransactionsPage() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
 
+  // 헤더 드롭다운 필터: 컬럼별 "표시할 값" 집합 (없으면 전체 표시)
+  const [filters, setFilters] = useState<Partial<Record<keyof TxRecord, Set<string>>>>({});
+  const [openFilter, setOpenFilter] = useState<keyof TxRecord | null>(null);
+  const [filterSearch, setFilterSearch] = useState('');
+
   // 추가 조회 라인 (기존 데이터에 누적)
   const [extras, setExtras] = useState<(QueryForm & { id: number })[]>([]);
   const [extraState, setExtraState] = useState<Record<number, { loading: boolean; err: string; added: number | null }>>({});
 
   async function query() {
-    setLoading(true); setErr('');
+    setLoading(true); setErr(''); setFilters({}); setOpenFilter(null);
     try {
       const all = await fetchTx({ lawdCd: region.lawdCd, dong: region.dong, facility, trade, from, to });
       setTxStore(all, { facility, trade, region: `${region.sido} ${region.dong}`.trim(), from, to });
@@ -111,6 +119,45 @@ export default function TransactionsPage() {
     ];
     return defs.filter((c) => rows.some((r) => r[c.key] != null && r[c.key] !== ''));
   }, [rows]);
+
+  // 필터 컬럼별 고유값 목록 (드롭다운 옵션)
+  const distinct = useMemo(() => {
+    const m: Partial<Record<keyof TxRecord, string[]>> = {};
+    for (const key of FILTERABLE) {
+      const s = new Set<string>();
+      for (const r of rows) { const v = r[key]; if (v != null && v !== '') s.add(String(v)); }
+      m[key] = [...s].sort((a, b) => a.localeCompare(b, 'ko'));
+    }
+    return m;
+  }, [rows]);
+
+  // 활성 필터를 모두 통과한 행만 표시
+  const filteredRows = useMemo(() => rows.filter((r) =>
+    (Object.entries(filters) as [keyof TxRecord, Set<string>][])
+      .every(([k, set]) => !set || set.has(String(r[k])))
+  ), [rows, filters]);
+
+  function openFilterFor(key: keyof TxRecord) {
+    setFilterSearch('');
+    setOpenFilter((cur) => (cur === key ? null : key));
+    // 최초 열 때는 전체 선택 상태로 초기화
+    setFilters((f) => (f[key] ? f : { ...f, [key]: new Set(distinct[key]) }));
+  }
+  function toggleFilterValue(key: keyof TxRecord, val: string) {
+    setFilters((f) => {
+      const cur = new Set(f[key] ?? distinct[key]);
+      if (cur.has(val)) cur.delete(val); else cur.add(val);
+      return { ...f, [key]: cur };
+    });
+  }
+  function setAllFilter(key: keyof TxRecord, all: boolean) {
+    setFilters((f) => ({ ...f, [key]: new Set(all ? distinct[key] : []) }));
+  }
+  // 필터가 걸려 일부만 표시 중인 컬럼인지
+  const isFiltered = (key: keyof TxRecord) => {
+    const set = filters[key];
+    return !!set && set.size < (distinct[key]?.length ?? 0);
+  };
 
   return (
     <div className="max-w-6xl">
@@ -196,16 +243,37 @@ export default function TransactionsPage() {
       {rows.length > 0 && (
         <>
           <div className="no-print mb-3 flex items-center gap-2">
-            <span className="text-xs text-gray-400">기준: {facility}·{trade}, {rows.length}건</span>
+            <span className="text-xs text-gray-400">
+              기준: {facility}·{trade}, {rows.length}건
+              {filteredRows.length !== rows.length && ` · 필터 ${filteredRows.length}건`}
+            </span>
           </div>
 
           <div className="overflow-x-auto rounded-lg border bg-white">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-left text-gray-600">
-                <tr>{cols.map((c) => <th key={String(c.key)} className="whitespace-nowrap px-3 py-2 font-medium">{c.label}</th>)}</tr>
+                <tr>{cols.map((c) => (
+                  <th key={String(c.key)} className="whitespace-nowrap px-3 py-2 font-medium">
+                    {FILTERABLE.has(c.key) ? (
+                      <FilterHeader
+                        label={c.label}
+                        active={isFiltered(c.key)}
+                        open={openFilter === c.key}
+                        values={distinct[c.key] ?? []}
+                        selected={filters[c.key] ?? new Set(distinct[c.key])}
+                        search={filterSearch}
+                        onSearch={setFilterSearch}
+                        onToggle={() => openFilterFor(c.key)}
+                        onToggleValue={(v) => toggleFilterValue(c.key, v)}
+                        onSelectAll={() => setAllFilter(c.key, true)}
+                        onClear={() => setAllFilter(c.key, false)}
+                      />
+                    ) : c.label}
+                  </th>
+                ))}</tr>
               </thead>
               <tbody>
-                {rows.map((r, i) => (
+                {filteredRows.map((r, i) => (
                   <tr key={i} className="border-t">
                     {cols.map((c) => (
                       <td key={String(c.key)} className="whitespace-nowrap px-3 py-1.5">
@@ -225,4 +293,48 @@ export default function TransactionsPage() {
 
 function L({ label, children }: { label: string; children: React.ReactNode }) {
   return <label className="flex flex-col gap-1 text-xs text-gray-500">{label}{children}</label>;
+}
+
+/** 표 머릿글 드롭다운 필터 (체크박스 다중선택 + 검색) */
+function FilterHeader({
+  label, active, open, values, selected, search,
+  onSearch, onToggle, onToggleValue, onSelectAll, onClear,
+}: {
+  label: string; active: boolean; open: boolean;
+  values: string[]; selected: Set<string>; search: string;
+  onSearch: (v: string) => void; onToggle: () => void;
+  onToggleValue: (v: string) => void; onSelectAll: () => void; onClear: () => void;
+}) {
+  const shown = values.filter((v) => v.toLowerCase().includes(search.toLowerCase()));
+  return (
+    <div className="relative inline-block">
+      <button type="button" onClick={onToggle}
+        className={`flex items-center gap-1 font-medium ${active ? 'text-blue-600' : 'text-gray-600 hover:text-gray-900'}`}>
+        {label}
+        <span className="text-[9px] leading-none">{active ? '●' : '▾'}</span>
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={onToggle} />
+          <div className="absolute left-0 top-full z-20 mt-1 w-56 rounded-md border bg-white p-2 shadow-lg">
+            <input value={search} onChange={(e) => onSearch(e.target.value)} placeholder="검색"
+              className="mb-2 w-full rounded border px-2 py-1 text-xs font-normal" />
+            <div className="mb-1.5 flex justify-between text-xs">
+              <button type="button" onClick={onSelectAll} className="text-blue-600 hover:underline">전체 선택</button>
+              <button type="button" onClick={onClear} className="text-gray-500 hover:underline">해제</button>
+            </div>
+            <div className="max-h-56 overflow-y-auto">
+              {shown.map((v) => (
+                <label key={v} className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-xs font-normal text-gray-700 hover:bg-gray-50">
+                  <input type="checkbox" checked={selected.has(v)} onChange={() => onToggleValue(v)} />
+                  <span className="truncate" title={v}>{v}</span>
+                </label>
+              ))}
+              {shown.length === 0 && <div className="px-1 py-2 text-xs text-gray-400">결과 없음</div>}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
 }
