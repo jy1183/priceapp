@@ -71,7 +71,7 @@ export default function TxAnalysisPage() {
             ))}
             {deal === '월세' && (
               <span className="text-xs text-gray-500">
-                (매매환산가 = (보증금×{+(config.depositYield * 100).toFixed(1)}% + 월세×12) ÷ 자본환원율 {+(config.capRate * 100).toFixed(1)}%)
+                (매매환산가 = (보증금×{+(config.depositYield * 100).toFixed(1)}% + 월세×12) ÷ 자본환원율 {+(config.capRate * 100).toFixed(1)}% + 보증금)
               </span>
             )}
             {txMeta && <span className="ml-2 text-xs text-gray-400">분석 지역(총 건수) : {txMeta.region}, {tx.length}건</span>}

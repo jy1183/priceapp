@@ -19,13 +19,14 @@ export function ppaJeonse(depositManwon: number, exclM2: number): number {
   return ppaTrade(depositManwon, exclM2);
 }
 
-/** 월세 → 매매환산가(천원) = (보증금×depositYield + 월세×12) / capRate × 10 */
+/** 월세 → 매매환산가(천원) = ((보증금×depositYield + 월세×12) / capRate + 보증금) × 10
+ *  소유자는 보증금 운용수익·월세뿐 아니라 보증금 원금도 보유하므로 보증금을 포함해 산출. */
 export function convertedSaleFromMonthly(
   depositManwon: number,
   monthlyRentManwon: number,
   cfg: AnalysisConfig,
 ): number {
-  return ((depositManwon * cfg.depositYield + monthlyRentManwon * 12) / cfg.capRate) * 10;
+  return (((depositManwon * cfg.depositYield + monthlyRentManwon * 12) / cfg.capRate) + depositManwon) * 10;
 }
 
 /** 월세 전용평당가 = 매매환산가 / (전용㎡ × 0.3025) */
