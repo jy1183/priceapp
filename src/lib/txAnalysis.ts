@@ -5,6 +5,7 @@
  * - 상위 n% 평균은 aggregate.ts(PERCENTILE.INC) 재사용 — 골든셋 0오차 검증됨
  */
 import { aggregate, mean, type AggregateResult } from '@/lib/calc/aggregate';
+import { PYEONG } from '@/lib/calc/constants';
 import type { TxRecord } from '@/lib/normalize';
 
 export type DealType = '매매' | '전세' | '월세';
@@ -141,6 +142,83 @@ export function topBuildings(rows: TxRecord[], n = 5): BuildingRow[] {
     .map(([name, e]) => ({ name, avg: mean(e.ppa), count: e.ppa.length, buildYears: [...e.years].sort((a, b) => a - b) }))
     .sort((a, b) => b.avg - a.avg)
     .slice(0, n);
+}
+
+/** ⑦ 종합 — 건물(단지)별 매매 상위 N에 같은 건물의 전세 집계를 매칭 (엑셀 참조 이미지 형식)
+ *  매매 평균 평당가 기준으로 순위를 매기고, 전세 데이터가 있으면 함께 표시. 전세만 있는 건물은 제외(매매 기준 랭킹이므로). */
+export interface BuildingSaleJeonseRow {
+  name: string;
+  buildYears: number[];
+  sale: { avg: number; count: number };
+  jeonse: { avg: number; count: number } | null;
+  /** 전세가율 = 전세 평균 평당가 ÷ 매매 평균 평당가 × 100 */
+  ratio: number | null;
+}
+export function topBuildingsSaleJeonse(tx: TxRecord[], n = 20): BuildingSaleJeonseRow[] {
+  const saleRows = tx.filter((r) => r.dealType === '매매');
+  const jeonseRows = tx.filter((r) => r.dealType === '전세');
+  const top = topBuildings(saleRows, n);
+
+  const jeonseByName = new Map<string, number[]>();
+  jeonseRows.forEach((r) => {
+    const nm = r.name?.trim();
+    if (r.ppa != null && Number.isFinite(r.ppa) && nm && nm !== '-') {
+      if (!jeonseByName.has(nm)) jeonseByName.set(nm, []);
+      jeonseByName.get(nm)!.push(r.ppa);
+    }
+  });
+
+  return top.map((b) => {
+    const jppa = jeonseByName.get(b.name);
+    const jeonse = jppa && jppa.length ? { avg: mean(jppa), count: jppa.length } : null;
+    const ratio = jeonse && b.avg > 0 ? (jeonse.avg / b.avg) * 100 : null;
+    return { name: b.name, buildYears: b.buildYears, sale: { avg: b.avg, count: b.count }, jeonse, ratio };
+  });
+}
+
+/** 종합 상세 — 특정 건물의 매매/전세 실거래를 평형(전용면적 반올림) 단위로 매칭해 나열.
+ *  같은 평형에 매매·전세가 여러 건이면 층 오름차순으로 정렬 후 순서대로 짝짓고,
+ *  한쪽이 더 많으면 남는 건은 반대쪽을 공란으로 표시. */
+export interface UnitSide { areaM2: number; amountManwon: number; floor: number | null; ppa: number | null }
+export interface UnitDetailRow { pyeong: number; sale: UnitSide | null; jeonse: UnitSide | null }
+
+export function buildingUnitDetail(tx: TxRecord[], buildingName: string): UnitDetailRow[] {
+  const rows = tx.filter((r) => (r.name ?? '').trim() === buildingName && r.areaM2 != null);
+  const pyeongKey = (m2: number) => Math.round(m2 * PYEONG);
+  const byFloor = (a: TxRecord, b: TxRecord) => (a.floor ?? 0) - (b.floor ?? 0);
+
+  const group = (dealType: TxRecord['dealType']) => {
+    const m = new Map<number, TxRecord[]>();
+    rows.filter((r) => r.dealType === dealType).forEach((r) => {
+      const k = pyeongKey(r.areaM2!);
+      if (!m.has(k)) m.set(k, []);
+      m.get(k)!.push(r);
+    });
+    m.forEach((list) => list.sort(byFloor));
+    return m;
+  };
+  const saleByPy = group('매매');
+  const jeonseByPy = group('전세');
+
+  const toSide = (r: TxRecord, amount: number | null): UnitSide => ({
+    areaM2: r.areaM2!, amountManwon: amount ?? 0, floor: r.floor, ppa: r.ppa,
+  });
+
+  const keys = [...new Set([...saleByPy.keys(), ...jeonseByPy.keys()])].sort((a, b) => a - b);
+  const out: UnitDetailRow[] = [];
+  keys.forEach((k) => {
+    const s = saleByPy.get(k) ?? [];
+    const j = jeonseByPy.get(k) ?? [];
+    const n = Math.max(s.length, j.length);
+    for (let i = 0; i < n; i++) {
+      out.push({
+        pyeong: k,
+        sale: s[i] ? toSide(s[i], s[i].amountManwon) : null,
+        jeonse: j[i] ? toSide(j[i], j[i].depositManwon) : null,
+      });
+    }
+  });
+  return out;
 }
 
 /** 구간별 전체(시설 합산) 평균 — 차트용 */

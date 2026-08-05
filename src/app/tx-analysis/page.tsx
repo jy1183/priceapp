@@ -6,10 +6,11 @@ import BarChart from '@/components/BarChart';
 import {
   DEAL_TYPES, DEAL_LABELS, BUILD_BUCKETS, type DealType,
   facilityAgg, facilityByRecency, facilityByAgeBucket,
-  topBuildings,
+  topBuildings, topBuildingsSaleJeonse, buildingUnitDetail,
 } from '@/lib/txAnalysis';
 import { AREA_BANDS, bandByFacility, bandByRecency, bandCountByFacility } from '@/lib/areaBands';
 import { facilityWithBasis } from '@/lib/normalize';
+import { PYEONG } from '@/lib/calc/constants';
 
 /** 시설별 시리즈 색상 팔레트 */
 const FAC_COLORS = ['#1d4ed8', '#059669', '#d97706', '#7c3aed', '#dc2626', '#0891b2', '#db2777', '#65a30d'];
@@ -22,12 +23,24 @@ const fmtYm = (v: string) => (/^\d{6}$/.test(v) ? `${v.slice(0, 4)}.${v.slice(4)
 
 /** ④ 실거래 분석 — 엑셀 「실거래 데이터 분석」 시트 이식.
  *  거래방식 탭 + 각 블록을 표 → 차트 순으로 표시 */
+type Mode = DealType | '종합';
+
 export default function TxAnalysisPage() {
   const { tx, txMeta, config } = useStore();
-  const [deal, setDeal] = useState<DealType>('매매');
+  const [deal, setDeal] = useState<Mode>('매매');
+  const [selectedBuilding, setSelectedBuilding] = useState<string | null>(null);
   const thisYear = new Date().getFullYear();
 
-  const dealRows = useMemo(() => tx.filter((r) => r.dealType === deal), [tx, deal]);
+  const dealRows = useMemo(() => (deal === '종합' ? [] : tx.filter((r) => r.dealType === deal)), [tx, deal]);
+  const topSaleJeonse = useMemo(() => topBuildingsSaleJeonse(tx, 20), [tx]);
+  const detailRows = useMemo(
+    () => (selectedBuilding ? buildingUnitDetail(tx, selectedBuilding) : []),
+    [tx, selectedBuilding],
+  );
+  const selectedBuildingInfo = useMemo(
+    () => topSaleJeonse.find((b) => b.name === selectedBuilding) ?? null,
+    [topSaleJeonse, selectedBuilding],
+  );
 
   const aggRows = useMemo(() => facilityAgg(dealRows, config.topPercentiles), [dealRows, config]);
   const topBld = useMemo(() => topBuildings(dealRows, 10), [dealRows]);
@@ -43,7 +56,7 @@ export default function TxAnalysisPage() {
     return c;
   }, [tx]);
 
-  const dl = DEAL_LABELS[deal];
+  const dl = deal === '종합' ? '종합' : DEAL_LABELS[deal];
 
   return (
     <div className="max-w-6xl">
@@ -69,6 +82,10 @@ export default function TxAnalysisPage() {
                 {DEAL_LABELS[d]} {dealCounts[d] ? `(${dealCounts[d]})` : ''}
               </button>
             ))}
+            <button onClick={() => setDeal('종합')}
+              className={`rounded-full px-3 py-1 text-xs ${deal === '종합' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>
+              종합
+            </button>
             {deal === '월세' && (
               <span className="text-xs text-gray-500">
                 (매매환산가 = (보증금×{+(config.depositYield * 100).toFixed(1)}% + 월세×12) ÷ 자본환원율 {+(config.capRate * 100).toFixed(1)}% + 보증금)
@@ -77,6 +94,97 @@ export default function TxAnalysisPage() {
             {txMeta && <span className="ml-2 text-xs text-gray-400">분석 지역(총 건수) : {txMeta.region}, {tx.length}건</span>}
           </div>
 
+          {deal === '종합' ? (
+          <>
+          {/* 종합: 건물(단지)별 매매·전세가 비교 상위 20 (매매 기준) */}
+          <Section title="종합: 건물(단지)별 매매·전세가 비교 (상위 20, 매매 기준)"
+            note="매매 평균 평당가 기준 상위 20개 건물. 같은 건물의 전세 실거래가 있으면 함께 표시(없으면 공란). 건물명을 클릭하면 하단에 평형별 상세 리스트가 표시됩니다.">
+            {topSaleJeonse.length === 0 ? <Empty /> : (
+              <TableBox>
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-left text-gray-600">
+                    <tr>
+                      <th rowSpan={2} className="border-b px-3 py-2 align-bottom">순위</th>
+                      <th rowSpan={2} className="border-b px-3 py-2 align-bottom">건물(단지)</th>
+                      <th rowSpan={2} className="border-b px-3 py-2 align-bottom">준공연도</th>
+                      <th colSpan={2} className="border-b px-3 py-1 text-center">매매가</th>
+                      <th colSpan={2} className="border-b px-3 py-1 text-center">전세가</th>
+                      <th rowSpan={2} className="border-b px-3 py-2 text-right align-bottom">전세가율</th>
+                    </tr>
+                    <tr>
+                      <Th>건수</Th><Th>평균 평당가(전용)</Th>
+                      <Th>건수</Th><Th>평균 평당가(전용)</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {topSaleJeonse.map((r, i) => (
+                      <tr key={r.name} className={`border-t ${selectedBuilding === r.name ? 'bg-blue-50' : ''}`}>
+                        <td className="px-3 py-1.5 font-medium">{i + 1}</td>
+                        <td className="px-3 py-1.5">
+                          <button onClick={() => setSelectedBuilding(r.name === selectedBuilding ? null : r.name)}
+                            className="text-blue-700 underline decoration-dotted hover:text-blue-900">
+                            {r.name}
+                          </button>
+                        </td>
+                        <td className="px-3 py-1.5">{r.buildYears.length ? r.buildYears.join('·') : '-'}</td>
+                        <Td>{r.sale.count}</Td><Td>{fmt(r.sale.avg)}</Td>
+                        <Td>{r.jeonse ? r.jeonse.count : '-'}</Td><Td>{r.jeonse ? fmt(r.jeonse.avg) : '-'}</Td>
+                        <Td>{r.ratio != null ? `${r.ratio.toFixed(1)}%` : '-'}</Td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </TableBox>
+            )}
+          </Section>
+
+          {selectedBuilding && (
+            <Section title={`종합 상세 — ${selectedBuilding}`}
+              note="같은 평형(전용면적 반올림 기준)의 매매·전세 실거래를 층 순으로 짝지어 표시합니다. 한쪽만 있으면 반대쪽은 공란입니다.">
+              <button onClick={() => setSelectedBuilding(null)} className="no-print mb-2 text-xs text-gray-500 underline">닫기</button>
+              {detailRows.length === 0 ? <Empty /> : (
+                <TableBox>
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 text-left text-gray-600">
+                      <tr>
+                        <th rowSpan={2} className="border-b px-3 py-2 align-bottom">순위</th>
+                        <th rowSpan={2} className="border-b px-3 py-2 align-bottom">건물(단지)</th>
+                        <th rowSpan={2} className="border-b px-3 py-2 align-bottom">준공연도</th>
+                        <th colSpan={5} className="border-b px-3 py-1 text-center">매매가</th>
+                        <th colSpan={5} className="border-b px-3 py-1 text-center">전세가</th>
+                      </tr>
+                      <tr>
+                        <Th>면적</Th><Th>면적(㎡)</Th><Th>금액(만원)</Th><Th>층</Th><Th>평당가(천원/평)</Th>
+                        <Th>면적</Th><Th>면적(㎡)</Th><Th>보증금(만원)</Th><Th>층</Th><Th>평당가(천원/평)</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {detailRows.map((r, i) => (
+                        <tr key={i} className="border-t">
+                          <td className="px-3 py-1.5 font-medium">{i + 1}</td>
+                          <td className="px-3 py-1.5">{selectedBuilding}</td>
+                          <td className="px-3 py-1.5">{selectedBuildingInfo?.buildYears.length ? selectedBuildingInfo.buildYears.join('·') : '-'}</td>
+                          <Td>{r.sale ? `${(r.sale.areaM2 * PYEONG).toFixed(1)}평` : '-'}</Td>
+                          <Td>{r.sale ? r.sale.areaM2.toFixed(2) : '-'}</Td>
+                          <Td>{r.sale ? r.sale.amountManwon.toLocaleString() : '-'}</Td>
+                          <Td>{r.sale?.floor ?? '-'}</Td>
+                          <Td>{r.sale?.ppa != null ? fmt(r.sale.ppa) : '-'}</Td>
+                          <Td>{r.jeonse ? `${(r.jeonse.areaM2 * PYEONG).toFixed(1)}평` : '-'}</Td>
+                          <Td>{r.jeonse ? r.jeonse.areaM2.toFixed(2) : '-'}</Td>
+                          <Td>{r.jeonse ? r.jeonse.amountManwon.toLocaleString() : '-'}</Td>
+                          <Td>{r.jeonse?.floor ?? '-'}</Td>
+                          <Td>{r.jeonse?.ppa != null ? fmt(r.jeonse.ppa) : '-'}</Td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </TableBox>
+              )}
+            </Section>
+          )}
+          </>
+          ) : (
+          <>
           {/* 1. 시설별 평균·상위 평균 (표 → 차트) */}
           <Section title={`1. 시설별 평균·상위 평균 — ${dl}`}
             note="상위 n%평균 = 상위 백분위 이상 값들의 평균.">
@@ -310,6 +418,8 @@ export default function TxAnalysisPage() {
               </>
             )}
           </Section>
+          </>
+          )}
         </>
       )}
     </div>
