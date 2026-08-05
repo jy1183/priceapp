@@ -215,6 +215,43 @@ export default function SisePage() {
           </div>
         </div>
       )}
+
+      {confirmed && rows.length > 0 && (
+        <div>
+          <h2 className="mb-2 font-semibold">시세 분석 — 정리된 데이터(물건별)</h2>
+          <p className="mb-2 text-xs text-gray-500">표를 드래그해서 선택 후 복사하면 엑셀 등에 붙여넣을 수 있습니다.</p>
+          <div className="overflow-x-auto rounded-lg border bg-white">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-left text-gray-600">
+                <tr>
+                  <th className="px-3 py-2">건물명</th><th className="px-3 py-2">시설</th><th className="px-3 py-2">공급면적</th><th className="px-3 py-2">전용면적</th>
+                  <th className="px-3 py-2">거래구분</th><th className="px-3 py-2">금액(천원)</th><th className="px-3 py-2">월임대료</th>
+                  <th className="px-3 py-2">평당가(공급)</th><th className="px-3 py-2">평당가(전용/대지)</th><th className="px-3 py-2">평당가(연면적)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {results.filter((x) => x.p.errors.length === 0).map(({ r, p }) => {
+                  const rep = siseRepPpa(r.facility, p.ppa);
+                  return (
+                    <tr key={r.id} className="border-t">
+                      <td className="px-3 py-1.5">{r.name || '-'}</td>
+                      <td className="px-3 py-1.5">{r.facility}</td>
+                      <td className="px-3 py-1.5">{p.row.supplyM2 ?? '-'}</td>
+                      <td className="px-3 py-1.5">{p.row.exclM2 ?? '-'}</td>
+                      <td className="px-3 py-1.5">{p.row.deal}</td>
+                      <td className="px-3 py-1.5">{p.row.amountCheonwon.toLocaleString()}</td>
+                      <td className="px-3 py-1.5">{p.row.monthlyRentCheonwon ? p.row.monthlyRentCheonwon.toLocaleString() : '-'}</td>
+                      <td className="px-3 py-1.5">{p.ppa.ppaSupply ? Math.round(p.ppa.ppaSupply).toLocaleString() : '-'}</td>
+                      <td className="px-3 py-1.5">{rep.value != null ? Math.round(rep.value).toLocaleString() : '-'}</td>
+                      <td className="px-3 py-1.5">{p.ppa.ppaYeon ? Math.round(p.ppa.ppaYeon).toLocaleString() : '-'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
