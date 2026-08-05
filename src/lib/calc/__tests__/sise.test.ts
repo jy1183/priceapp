@@ -26,7 +26,7 @@ describe('시세 파서 · 평당가', () => {
       DEFAULT_CONFIG,
     );
     expect(errors).toHaveLength(0);
-    const expected = (1300 * 12 + 30000 * 0.035) / 0.07; // 천원
+    const expected = (1300 * 12 + 30000 * 0.035) / 0.07 + 30000; // 천원 (보증금 원금 포함)
     expect(ppa.convertedSale).toBeCloseTo(expected, 6);
     expect(ppa.ppaExcl!).toBeCloseTo(expected / (29.7 * 0.3025), 6);
   });
