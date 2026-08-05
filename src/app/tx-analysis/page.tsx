@@ -107,18 +107,18 @@ export default function TxAnalysisPage() {
                       <th rowSpan={2} className="border-b px-3 py-2 align-bottom">순위</th>
                       <th rowSpan={2} className="border-b px-3 py-2 align-bottom">건물(단지)</th>
                       <th rowSpan={2} className="border-b px-3 py-2 align-bottom">준공연도</th>
-                      <th colSpan={2} className="border-b px-3 py-1 text-center">매매가</th>
+                      <th colSpan={2} className="border-b bg-blue-50 px-3 py-1 text-center">매매가</th>
                       <th colSpan={2} className="border-b px-3 py-1 text-center">전세가</th>
                       <th rowSpan={2} className="border-b px-3 py-2 text-right align-bottom">전세가율</th>
                     </tr>
                     <tr>
-                      <Th>건수</Th><Th>평균 평당가(전용)</Th>
+                      <Th className="bg-blue-50">건수</Th><Th className="bg-blue-50">평균 평당가(전용)</Th>
                       <Th>건수</Th><Th>평균 평당가(전용)</Th>
                     </tr>
                   </thead>
                   <tbody>
                     {topSaleJeonse.map((r, i) => (
-                      <tr key={r.name} className={`border-t ${selectedBuilding === r.name ? 'bg-blue-50' : ''}`}>
+                      <tr key={r.name} className={`border-t ${selectedBuilding === r.name ? 'bg-blue-100/60' : ''}`}>
                         <td className="px-3 py-1.5 font-medium">{i + 1}</td>
                         <td className="px-3 py-1.5">
                           <button onClick={() => setSelectedBuilding(r.name === selectedBuilding ? null : r.name)}
@@ -127,7 +127,7 @@ export default function TxAnalysisPage() {
                           </button>
                         </td>
                         <td className="px-3 py-1.5">{r.buildYears.length ? r.buildYears.join('·') : '-'}</td>
-                        <Td>{r.sale.count}</Td><Td>{fmt(r.sale.avg)}</Td>
+                        <Td className="bg-blue-50/60">{r.sale.count}</Td><Td className="bg-blue-50/60">{fmt(r.sale.avg)}</Td>
                         <Td>{r.jeonse ? r.jeonse.count : '-'}</Td><Td>{r.jeonse ? fmt(r.jeonse.avg) : '-'}</Td>
                         <Td>{r.ratio != null ? `${r.ratio.toFixed(1)}%` : '-'}</Td>
                       </tr>
@@ -150,11 +150,11 @@ export default function TxAnalysisPage() {
                         <th rowSpan={2} className="border-b px-3 py-2 align-bottom">순위</th>
                         <th rowSpan={2} className="border-b px-3 py-2 align-bottom">건물(단지)</th>
                         <th rowSpan={2} className="border-b px-3 py-2 align-bottom">준공연도</th>
-                        <th colSpan={5} className="border-b px-3 py-1 text-center">매매가</th>
+                        <th colSpan={5} className="border-b bg-blue-50 px-3 py-1 text-center">매매가</th>
                         <th colSpan={5} className="border-b px-3 py-1 text-center">전세가</th>
                       </tr>
                       <tr>
-                        <Th>면적</Th><Th>면적(㎡)</Th><Th>금액(만원)</Th><Th>층</Th><Th>평당가(천원/평)</Th>
+                        <Th className="bg-blue-50">면적</Th><Th className="bg-blue-50">면적(㎡)</Th><Th className="bg-blue-50">금액(만원)</Th><Th className="bg-blue-50">층</Th><Th className="bg-blue-50">평당가(천원/평)</Th>
                         <Th>면적</Th><Th>면적(㎡)</Th><Th>보증금(만원)</Th><Th>층</Th><Th>평당가(천원/평)</Th>
                       </tr>
                     </thead>
@@ -164,11 +164,11 @@ export default function TxAnalysisPage() {
                           <td className="px-3 py-1.5 font-medium">{i + 1}</td>
                           <td className="px-3 py-1.5">{selectedBuilding}</td>
                           <td className="px-3 py-1.5">{selectedBuildingInfo?.buildYears.length ? selectedBuildingInfo.buildYears.join('·') : '-'}</td>
-                          <Td>{r.sale ? `${(r.sale.areaM2 * PYEONG).toFixed(1)}평` : '-'}</Td>
-                          <Td>{r.sale ? r.sale.areaM2.toFixed(2) : '-'}</Td>
-                          <Td>{r.sale ? r.sale.amountManwon.toLocaleString() : '-'}</Td>
-                          <Td>{r.sale?.floor ?? '-'}</Td>
-                          <Td>{r.sale?.ppa != null ? fmt(r.sale.ppa) : '-'}</Td>
+                          <Td className="bg-blue-50/60">{r.sale ? `${(r.sale.areaM2 * PYEONG).toFixed(1)}평` : '-'}</Td>
+                          <Td className="bg-blue-50/60">{r.sale ? r.sale.areaM2.toFixed(2) : '-'}</Td>
+                          <Td className="bg-blue-50/60">{r.sale ? r.sale.amountManwon.toLocaleString() : '-'}</Td>
+                          <Td className="bg-blue-50/60">{r.sale?.floor ?? '-'}</Td>
+                          <Td className="bg-blue-50/60">{r.sale?.ppa != null ? fmt(r.sale.ppa) : '-'}</Td>
                           <Td>{r.jeonse ? `${(r.jeonse.areaM2 * PYEONG).toFixed(1)}평` : '-'}</Td>
                           <Td>{r.jeonse ? r.jeonse.areaM2.toFixed(2) : '-'}</Td>
                           <Td>{r.jeonse ? r.jeonse.amountManwon.toLocaleString() : '-'}</Td>
@@ -436,6 +436,6 @@ function Section({ title, note, children }: { title: string; note?: string; chil
   );
 }
 const TableBox = ({ children }: { children: ReactNode }) => <div className="overflow-x-auto rounded-lg border bg-white">{children}</div>;
-const Th = ({ children }: { children: ReactNode }) => <th className="px-3 py-2 text-right">{children}</th>;
-const Td = ({ children }: { children: ReactNode }) => <td className="px-3 py-1.5 text-right">{children}</td>;
+const Th = ({ children, className = '' }: { children: ReactNode; className?: string }) => <th className={`px-3 py-2 text-right ${className}`}>{children}</th>;
+const Td = ({ children, className = '' }: { children: ReactNode; className?: string }) => <td className={`px-3 py-1.5 text-right ${className}`}>{children}</td>;
 const Empty = () => <div className="rounded-lg border bg-white px-3 py-3 text-sm text-gray-400">해당 조건의 데이터가 없습니다.</div>;
