@@ -19,6 +19,8 @@
     "echarts-for-react": "^3.0.2",
     "exceljs": "^4.4.0",
     "fast-xml-parser": "^4.5.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
     "next": "^15.5.20",
     "pptxgenjs": "^4.0.1",
     "react": "19.0.0",

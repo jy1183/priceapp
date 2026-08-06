@@ -35,7 +35,7 @@ export interface KosisResult {
   data: KosisPop; sido: KosisPop | null;
 }
 
-interface AppState {
+export interface AppState {
   projectName: string;
   config: AnalysisConfig;
   sise: SiseResult[];
@@ -62,6 +62,14 @@ interface AppState {
   setKosisResult: (k: KosisResult | null) => void;
   loadSnapshot: (s: Partial<AppState>) => void;
 }
+
+/** 로컬 저장(엑셀 _appdata)·복원 대상 필드 — persist partialize와 동일 범위 */
+export type SnapshotState = Pick<AppState,
+  | 'projectName' | 'config'
+  | 'sise' | 'siseMeta' | 'siseInput' | 'sisePaste' | 'siseConfirmed'
+  | 'tx' | 'txMeta' | 'txForm'
+  | 'rebResult' | 'kosisResult'
+>;
 
 export const useStore = create<AppState>()(
   persist(

@@ -65,13 +65,14 @@ export function bandByRecencyFacility(rows: TxRecord[], thisYear: number): Recen
     { key: 'all', label: '전체', test: () => true },
   ];
 
+  // 시설 우선 그룹핑(시설 셀 병합용) → 시설 내에서 준공연도 최근성 순
   const out: RecencyFacilityBandRow[] = [];
-  for (const d of defs) {
-    const sub = base.filter((r) => d.test(r.buildYear));
-    for (const f of orderFacilities(sub.map((r) => r.facility))) {
+  for (const f of orderFacilities(base.map((r) => r.facility))) {
+    for (const d of defs) {
+      const sub = base.filter((r) => r.facility === f && d.test(r.buildYear));
       const cells: Record<string, BandCell> = {};
       for (const b of AREA_BANDS) {
-        const vals = sub.filter((r) => r.facility === f && r.band.key === b.key).map((r) => r.ppa);
+        const vals = sub.filter((r) => r.band.key === b.key).map((r) => r.ppa);
         cells[b.key] = { avg: vals.length ? mean(vals) : NaN, count: vals.length };
       }
       if (AREA_BANDS.some((b) => cells[b.key].count > 0)) {

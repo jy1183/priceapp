@@ -305,15 +305,16 @@ export default function TxAnalysisPage() {
                 <TableBox>
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 text-left text-gray-600">
-                      <tr><th className="px-3 py-2">준공연도</th><th className="px-3 py-2">시설</th>{AREA_BANDS.map((b) => <Th key={b.key}>{b.label}</Th>)}</tr>
+                      <tr><th className="px-3 py-2">시설</th><th className="px-3 py-2">준공연도</th>{AREA_BANDS.map((b) => <Th key={b.key}><BandLabel label={b.label} /></Th>)}</tr>
                     </thead>
                     <tbody>
                       {mRecFacBand.map((row, i) => {
-                        const firstOfGroup = i === 0 || mRecFacBand[i - 1].recencyKey !== row.recencyKey;
+                        const firstOfFacility = i === 0 || mRecFacBand[i - 1].facility !== row.facility;
+                        const span = mRecFacBand.filter((r) => r.facility === row.facility).length;
                         return (
-                          <tr key={`${row.recencyKey}-${row.facility}`} className={`border-t ${firstOfGroup ? 'border-gray-300' : ''}`}>
-                            <td className="px-3 py-1.5 font-medium">{firstOfGroup ? row.recencyLabel : ''}</td>
-                            <td className="px-3 py-1.5">{facilityWithBasis(row.facility)}</td>
+                          <tr key={`${row.facility}-${row.recencyKey}`} className={`border-t ${firstOfFacility ? 'border-gray-300' : ''}`}>
+                            {firstOfFacility && <td rowSpan={span} className="border-r px-3 py-1.5 align-middle font-medium">{facilityWithBasis(row.facility)}</td>}
+                            <td className="px-3 py-1.5 text-gray-600">{row.recencyLabel}</td>
                             {AREA_BANDS.map((b) => {
                               const c = row.cells[b.key];
                               return <Td key={b.key}>{c.count ? fmt(c.avg) : '-'}
@@ -592,3 +593,8 @@ const TableBox = ({ children }: { children: ReactNode }) => <div className="over
 const Th = ({ children, className = '' }: { children: ReactNode; className?: string }) => <th className={`px-3 py-2 text-right ${className}`}>{children}</th>;
 const Td = ({ children, className = '' }: { children: ReactNode; className?: string }) => <td className={`px-3 py-1.5 text-right ${className}`}>{children}</td>;
 const Empty = () => <div className="rounded-lg border bg-white px-3 py-3 text-sm text-gray-400">해당 조건의 데이터가 없습니다.</div>;
+/** 평형대 라벨 2줄 표시 — "40㎡ 이하 (초소형)" → "40㎡ 이하" / "(초소형)" */
+const BandLabel = ({ label }: { label: string }) => {
+  const [size, ...rest] = label.split(' (');
+  return <><span className="block whitespace-nowrap">{size}</span>{rest.length ? <span className="block whitespace-nowrap font-normal text-gray-400">({rest.join(' (')}</span> : null}</>;
+};
