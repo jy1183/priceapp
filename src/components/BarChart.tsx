@@ -13,17 +13,18 @@ export interface BarSeries { name: string; data: (number | null)[]; color?: stri
 
 /** 범용 막대 차트 — 단일/그룹(범례) 공용. 표 다음에 배치하는 용도
  *  wrapX: x축 항목명을 생략 없이 전부 표시하고 ' (' 앞에서 2줄로 줄바꿈 (평형대 라벨용)
- *  rotateX: x축 항목명을 생략 없이 전부 기울여 표시 (건물명 등 항목이 많을 때) */
+ *  rotateX: x축 항목명을 생략 없이 전부 기울여 표시 (건물명 등 항목이 많을 때)
+ *  alwaysShowLegend: 계열(범례 항목)이 1개뿐이어도 범례를 표시 (범례가 항목명을 나타내는 차트에서 항목명 누락 방지) */
 export default function BarChart({
-  title, x, series, xName, height = 300, wrapX = false, rotateX,
-}: { title: string; x: (string | number)[]; series: BarSeries[]; xName?: string; height?: number; wrapX?: boolean; rotateX?: number }) {
-  const grouped = series.length > 1;
+  title, x, series, xName, height = 300, wrapX = false, rotateX, alwaysShowLegend = false,
+}: { title: string; x: (string | number)[]; series: BarSeries[]; xName?: string; height?: number; wrapX?: boolean; rotateX?: number; alwaysShowLegend?: boolean }) {
+  const showLegend = series.length > 1 || alwaysShowLegend;
   const option = {
     title: { text: title, left: 'center', textStyle: { fontSize: 13 } },
     tooltip: { trigger: 'axis' },
-    legend: grouped ? { top: 24, textStyle: { fontSize: 11 } } : undefined,
+    legend: showLegend ? { top: 24, textStyle: { fontSize: 11 } } : undefined,
     toolbox: { right: 10, feature: { saveAsImage: { title: '이미지' } } },
-    grid: { left: 64, right: 20, top: grouped ? 60 : 44, bottom: wrapX ? 58 : rotateX ? 72 : 44 },
+    grid: { left: 64, right: 20, top: showLegend ? 60 : 44, bottom: wrapX ? 58 : rotateX ? 72 : 44 },
     xAxis: {
       type: 'category', data: x, name: xName,
       axisLabel: wrapX
