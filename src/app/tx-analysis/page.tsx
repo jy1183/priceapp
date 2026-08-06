@@ -11,6 +11,7 @@ import {
 import { AREA_BANDS, bandByFacility, bandByRecency, bandCountByFacility } from '@/lib/areaBands';
 import { facilityWithBasis } from '@/lib/normalize';
 import { PYEONG } from '@/lib/calc/constants';
+import { toMonthlyPpaRecords, bandByRecencyFacility, STD_DEPOSIT_MANWON } from '@/lib/monthlyRent';
 
 /** 시설별 시리즈 색상 팔레트 */
 const FAC_COLORS = ['#1d4ed8', '#059669', '#d97706', '#7c3aed', '#dc2626', '#0891b2', '#db2777', '#65a30d'];
@@ -23,7 +24,7 @@ const fmtYm = (v: string) => (/^\d{6}$/.test(v) ? `${v.slice(0, 4)}.${v.slice(4)
 
 /** ④ 실거래 분석 — 엑셀 「실거래 데이터 분석」 시트 이식.
  *  거래방식 탭 + 각 블록을 표 → 차트 순으로 표시 */
-type Mode = DealType | '종합';
+type Mode = DealType | '월임대료' | '종합';
 
 export default function TxAnalysisPage() {
   const { tx, txMeta, config } = useStore();
@@ -50,13 +51,20 @@ export default function TxAnalysisPage() {
   const bandRec = useMemo(() => bandByRecency(dealRows, thisYear), [dealRows, thisYear]);
   const bandCnt = useMemo(() => bandCountByFacility(dealRows), [dealRows]);
 
+  // 월임대료 분석: 월세 레코드의 ppa를 평당 보정월세(천원/평)로 치환한 파생 레코드 기준 집계
+  const monthlyRows = useMemo(() => toMonthlyPpaRecords(tx, config.capRate), [tx, config.capRate]);
+  const mAgg = useMemo(() => facilityAgg(monthlyRows, config.topPercentiles), [monthlyRows, config.topPercentiles]);
+  const mTopBld = useMemo(() => topBuildings(monthlyRows, 10), [monthlyRows]);
+  const mRecency = useMemo(() => facilityByRecency(monthlyRows, thisYear), [monthlyRows, thisYear]);
+  const mRecFacBand = useMemo(() => bandByRecencyFacility(monthlyRows, thisYear), [monthlyRows, thisYear]);
+
   const dealCounts = useMemo(() => {
     const c: Record<string, number> = { 매매: 0, 전세: 0, 월세: 0 };
     tx.forEach((r) => { c[r.dealType] = (c[r.dealType] ?? 0) + 1; });
     return c;
   }, [tx]);
 
-  const dl = deal === '종합' ? '종합' : DEAL_LABELS[deal];
+  const dl = deal === '종합' || deal === '월임대료' ? deal : DEAL_LABELS[deal];
 
   return (
     <div className="max-w-6xl">
@@ -82,6 +90,10 @@ export default function TxAnalysisPage() {
                 {DEAL_LABELS[d]} {dealCounts[d] ? `(${dealCounts[d]})` : ''}
               </button>
             ))}
+            <button onClick={() => setDeal('월임대료')}
+              className={`rounded-full px-3 py-1 text-xs ${deal === '월임대료' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>
+              월임대료 {dealCounts['월세'] ? `(${dealCounts['월세']})` : ''}
+            </button>
             <button onClick={() => setDeal('종합')}
               className={`rounded-full px-3 py-1 text-xs ${deal === '종합' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>
               종합
@@ -89,6 +101,11 @@ export default function TxAnalysisPage() {
             {deal === '월세' && (
               <span className="text-xs text-gray-500">
                 (매매환산가 = (보증금×{+(config.depositYield * 100).toFixed(1)}% + 월세×12) ÷ 자본환원율 {+(config.capRate * 100).toFixed(1)}% + 보증금)
+              </span>
+            )}
+            {deal === '월임대료' && (
+              <span className="text-xs text-gray-500">
+                (보정월세 = (보증금 − {(STD_DEPOSIT_MANWON / 100).toLocaleString()}백만원) × 자본환원율 {+(config.capRate * 100).toFixed(1)}% ÷ 12 + 월세 · 기준보증금 {STD_DEPOSIT_MANWON.toLocaleString()}만원 · 평당 천원/평(월))
               </span>
             )}
             {txMeta && <span className="ml-2 text-xs text-gray-400">분석 지역(총 건수) : {txMeta.region}, {tx.length}건</span>}
@@ -182,6 +199,142 @@ export default function TxAnalysisPage() {
               )}
             </Section>
           )}
+          </>
+          ) : deal === '월임대료' ? (
+          <>
+          {/* 월임대료 1. 시설별 평균·상위 평균 (표 → 차트) */}
+          <Section title="1. 시설별 평균·상위 평균 — 월임대료 (천원/평·월)"
+            note={`월세 실거래를 기준보증금 ${STD_DEPOSIT_MANWON.toLocaleString()}만원으로 통일한 보정월세의 평당 월임대료. 상위 n%평균 = 상위 백분위 이상 값들의 평균. 자본환원율 ${+(config.capRate * 100).toFixed(1)}% 적용(분석환경설정).`}>
+            {mAgg.length === 0 ? <Empty /> : (
+              <>
+                <TableBox>
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 text-left text-gray-600">
+                      <tr><th className="px-3 py-2">시설</th><th className="px-3 py-2">건수</th><Th>평균 평당월세</Th><Th>상위50%</Th><Th>상위30%</Th><Th>상위10%</Th></tr>
+                    </thead>
+                    <tbody>
+                      {mAgg.map((r) => (
+                        <tr key={r.facility} className="border-t">
+                          <td className="px-3 py-1.5 font-medium">{facilityWithBasis(r.facility)}</td>
+                          <td className="px-3 py-1.5">{r.agg.count}</td>
+                          <Td>{fmt(r.agg.avg)}</Td><Td>{fmt(r.agg.top50)}</Td><Td>{fmt(r.agg.top30)}</Td><Td>{fmt(r.agg.top10)}</Td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </TableBox>
+                <BarChart title="시설별 평균·상위 평균 (월임대료, 천원/평·월)" xName="시설"
+                  x={mAgg.map((r) => facilityWithBasis(r.facility))}
+                  series={[
+                    { name: '평균', data: mAgg.map((r) => chartVal(r.agg.avg)), color: '#93c5fd' },
+                    { name: '상위50%', data: mAgg.map((r) => chartVal(r.agg.top50)), color: '#60a5fa' },
+                    { name: '상위30%', data: mAgg.map((r) => chartVal(r.agg.top30)), color: '#3b82f6' },
+                    { name: '상위10%', data: mAgg.map((r) => chartVal(r.agg.top10)), color: '#1d4ed8' },
+                  ]} />
+              </>
+            )}
+          </Section>
+
+          {/* 월임대료 2. 건물(단지)별 상위 10 (표 → 차트) */}
+          <Section title="2. 건물(단지)별 상위 10 평균 평당월세 — 월임대료"
+            note="월세 실거래 건물명별 평균 평당 월임대료(보정월세 기준) 상위 10개.">
+            {mTopBld.length === 0 ? <Empty /> : (
+              <>
+                <TableBox>
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 text-left text-gray-600">
+                      <tr><th className="px-3 py-2">순위</th><th className="px-3 py-2">건물(단지)</th><th className="px-3 py-2">준공연도</th><th className="px-3 py-2 text-right">건수</th><Th>평균 평당월세(전용)</Th></tr>
+                    </thead>
+                    <tbody>
+                      {mTopBld.map((r, i) => (
+                        <tr key={r.name} className="border-t">
+                          <td className="px-3 py-1.5 font-medium">{i + 1}</td>
+                          <td className="px-3 py-1.5">{r.name}</td>
+                          <td className="px-3 py-1.5">{r.buildYears.length ? r.buildYears.join('·') : '-'}</td>
+                          <td className="px-3 py-1.5 text-right text-gray-500">{r.count}</td>
+                          <Td>{fmt(r.avg)}</Td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </TableBox>
+                <BarChart title="건물(단지)별 상위 10 평균 평당월세 (월임대료, 천원/평·월)" xName="건물" rotateX={30}
+                  x={mTopBld.map((r) => r.name)}
+                  series={[{ name: '평균 평당월세', data: mTopBld.map((r) => chartVal(r.avg)), color: '#2563eb' }]} />
+              </>
+            )}
+          </Section>
+
+          {/* 월임대료 3. 시설별 × 준공연도 기간별 (표 → 차트) */}
+          <Section title="3. 시설별 × 준공연도 기간별 평균 평당월세 — 월임대료"
+            note={`준공연도 기준(거래일과 별개). 기준연도 ${thisYear}년: 최근5년=${thisYear - 5}~${thisYear}, 최근10년=${thisYear - 10}~${thisYear}.`}>
+            {mRecency.length === 0 ? <Empty /> : (
+              <>
+                <TableBox>
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 text-left text-gray-600">
+                      <tr><th className="px-3 py-2">시설</th><Th>최근5년</Th><Th>최근10년</Th><Th>전체 평균</Th><th className="px-3 py-2 text-right">건수</th></tr>
+                    </thead>
+                    <tbody>
+                      {mRecency.map((r) => (
+                        <tr key={r.facility} className="border-t">
+                          <td className="px-3 py-1.5 font-medium">{facilityWithBasis(r.facility)}</td>
+                          <Td>{fmt(r.recent5)}</Td><Td>{fmt(r.recent10)}</Td><Td>{fmt(r.all)}</Td>
+                          <td className="px-3 py-1.5 text-right text-gray-500">{r.count}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </TableBox>
+                <BarChart title="시설별 × 준공연도 기간별 평균 평당월세 (월임대료, 천원/평·월)" xName="시설"
+                  x={mRecency.map((r) => facilityWithBasis(r.facility))}
+                  series={[
+                    { name: '최근5년', data: mRecency.map((r) => chartVal(r.recent5)), color: '#1d4ed8' },
+                    { name: '최근10년', data: mRecency.map((r) => chartVal(r.recent10)), color: '#60a5fa' },
+                    { name: '전체', data: mRecency.map((r) => chartVal(r.all)), color: '#cbd5e1' },
+                  ]} />
+              </>
+            )}
+          </Section>
+
+          {/* 월임대료 4. 준공연도 × 시설 × 평형대별 (표 → 차트) */}
+          <Section title="4. 준공연도 × 시설 × 평형대별 평균 평당월세 — 월임대료"
+            note={`주거 상품만 집계(전용면적 기준, 단독다가구는 연면적으로 분류). "준공 최근 N년"은 준공연도 기준. 기준연도 ${thisYear}년: 최근5년=${thisYear - 5}~${thisYear}, 최근10년=${thisYear - 10}~${thisYear}. 보정월세 미산출·결측 행 제외. 셀 아래 작은 숫자는 건수.`}>
+            {mRecFacBand.length === 0 ? <Empty /> : (
+              <>
+                <TableBox>
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 text-left text-gray-600">
+                      <tr><th className="px-3 py-2">준공연도</th><th className="px-3 py-2">시설</th>{AREA_BANDS.map((b) => <Th key={b.key}>{b.label}</Th>)}</tr>
+                    </thead>
+                    <tbody>
+                      {mRecFacBand.map((row, i) => {
+                        const firstOfGroup = i === 0 || mRecFacBand[i - 1].recencyKey !== row.recencyKey;
+                        return (
+                          <tr key={`${row.recencyKey}-${row.facility}`} className={`border-t ${firstOfGroup ? 'border-gray-300' : ''}`}>
+                            <td className="px-3 py-1.5 font-medium">{firstOfGroup ? row.recencyLabel : ''}</td>
+                            <td className="px-3 py-1.5">{facilityWithBasis(row.facility)}</td>
+                            {AREA_BANDS.map((b) => {
+                              const c = row.cells[b.key];
+                              return <Td key={b.key}>{c.count ? fmt(c.avg) : '-'}
+                                {c.count ? <span className="ml-1 text-[10px] text-gray-400">{c.count}</span> : null}</Td>;
+                            })}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </TableBox>
+                <BarChart title="시설별 평형대 평균 평당월세 (준공 전체 기준, 천원/평·월)" xName="평형대" wrapX
+                  x={AREA_BANDS.map((b) => b.label)}
+                  series={mRecFacBand.filter((r) => r.recencyKey === 'all').map((row, i) => ({
+                    name: facilityWithBasis(row.facility),
+                    data: AREA_BANDS.map((b) => (row.cells[b.key].count ? chartVal(row.cells[b.key].avg) : null)),
+                    color: FAC_COLORS[i % FAC_COLORS.length],
+                  }))} />
+              </>
+            )}
+          </Section>
           </>
           ) : (
           <>
