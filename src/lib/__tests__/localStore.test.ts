@@ -21,6 +21,7 @@ const snap: SnapshotState = {
   txForm: { sido: '서울특별시', lawdCd: '11560', dong: '영등포동8가', facility: '오피스텔', trade: '매매', from: '202501', to: '202506', period: 'all' },
   rebResult: null,
   kosisResult: null,
+  priceCalc: [],
 };
 
 describe('localStore 저장/불러오기 왕복', () => {

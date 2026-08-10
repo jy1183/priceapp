@@ -1,5 +1,9 @@
 /** 저장·불러오기 — 로컬 파일(엑셀 하이브리드: 표 시트 + 숨김 _appdata 스냅샷) */
 import type { SnapshotState } from '@/lib/store';
+import { buildPriceCatalog, resolveAreaBandOptions } from '@/lib/priceCalc';
+import { bandByFacility } from '@/lib/areaBands';
+import { bandByRecencyFacility } from '@/lib/monthlyRent';
+import { PYEONG } from '@/lib/calc/constants';
 
 const APPDATA_SHEET = '_appdata';
 const CHUNK = 30000; // 엑셀 셀 문자열 한도(32767) 이내로 JSON 분할 저장
@@ -60,6 +64,29 @@ export async function buildSnapshotWorkbook(snap: SnapshotState): Promise<any> {
   }
   if (!snap.rebResult && !snap.kosisResult) wsRegion.addRow(['조회된 지역분석 데이터 없음']);
   wsRegion.columns.forEach((c: any) => (c.width = 18));
+
+  const wsPrice = wb.addWorksheet('가격산정');
+  wsPrice.addRow(['시설', '타입', '평형', '세대수', '전용면적(㎡)', '전용면적(평)', '적용 단가', '평당매매가격(천원/평)', '적용비율(%)', '세대당 매각가(천원)', '총매출(천원)']).font = { bold: true };
+  const thisYear = new Date().getFullYear();
+  const catalog = buildPriceCatalog(snap.sise, snap.tx, snap.config, thisYear);
+  const saleTx = snap.tx.filter((t) => t.dealType === '매매');
+  const bandFac = bandByFacility(saleTx);
+  const bandRecFac = bandByRecencyFacility(saleTx, thisYear);
+  snap.priceCalc.forEach((r) => {
+    const areaOpts = resolveAreaBandOptions(r.facility, r.exclM2, bandFac, bandRecFac);
+    const opt = [...(catalog.get(r.facility) ?? []), ...areaOpts].find((o) => o.key === r.priceKey && !o.disabled);
+    const pyeong = r.exclM2 != null ? r.exclM2 * PYEONG : null;
+    const applied = opt ? opt.value * (r.applyRatio / 100) : null;
+    const unitPrice = pyeong != null && applied != null ? pyeong * applied : null;
+    const total = unitPrice != null && r.units != null ? unitPrice * r.units : null;
+    wsPrice.addRow([
+      r.facility, r.type, r.pyeong, r.units ?? '', r.exclM2 ?? '',
+      pyeong != null ? Math.round(pyeong * 100) / 100 : '',
+      opt?.label ?? '', opt ? Math.round(opt.value) : '', r.applyRatio,
+      unitPrice != null ? Math.round(unitPrice) : '', total != null ? Math.round(total) : '',
+    ]);
+  });
+  wsPrice.columns.forEach((c: any) => (c.width = 16));
 
   const wsData = wb.addWorksheet(APPDATA_SHEET);
   wsData.state = 'hidden';
