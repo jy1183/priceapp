@@ -23,7 +23,7 @@ export default function ProjectBar() {
       siseInput: s.siseInput, sisePaste: s.sisePaste, siseConfirmed: s.siseConfirmed,
       tx: s.tx, txMeta: s.txMeta, txForm: s.txForm,
       rebResult: s.rebResult, kosisResult: s.kosisResult,
-      priceCalc: s.priceCalc,
+      priceCalc: s.priceCalc, priceCalcKey: s.priceCalcKey, priceCalcRatio: s.priceCalcRatio,
     };
   }
 

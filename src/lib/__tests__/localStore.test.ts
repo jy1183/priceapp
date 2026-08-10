@@ -22,6 +22,8 @@ const snap: SnapshotState = {
   rebResult: null,
   kosisResult: null,
   priceCalc: [],
+  priceCalcKey: null,
+  priceCalcRatio: 100,
 };
 
 describe('localStore 저장/불러오기 왕복', () => {

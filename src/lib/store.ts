@@ -20,16 +20,13 @@ export interface SiseInputRow extends SiseRawInput { id: number }
 export interface SiseMeta { parsedCount: number; errorCount: number; }
 export interface TxMeta { facility: string; trade: string; region: string; from: string; to: string; }
 
-/** 가격 산정 입력 1행 — 시설·타입·평형별 세대수·전용면적에 선택 단가를 적용해 세대당 매각가·총매출 산출 */
+/** 가격 산정 입력 1행 — 시설·타입(평형)별 세대수·전용면적. 단가·적용비율은 표 상단에서 전체 행에 공통 적용(store 최상위 필드). */
 export interface PriceCalcRow {
   id: number;
   facility: string;
-  type: string;        // 타입
-  pyeong: string;       // 평형 (텍스트)
+  type: string;        // 타입(평형) — 예: "84A(34평)"
   units: number | null; // 세대수
   exclM2: number | null; // 전용면적(㎡)
-  priceKey: string | null; // 선택된 평당매매가격(적용 단가) 옵션 키
-  applyRatio: number;   // 적용비율(%), 기본 100
 }
 
 /** 지역분석(REB) 조회 결과 스냅샷 — 초기화 전까지 화면에 유지 */
@@ -61,6 +58,8 @@ export interface AppState {
   rebResult: RebResult | null;
   kosisResult: KosisResult | null;
   priceCalc: PriceCalcRow[];
+  priceCalcKey: string | null;  // 가격 산정 — 표 상단 공통 평당매매가격(적용 단가) 선택
+  priceCalcRatio: number;       // 가격 산정 — 표 상단 공통 적용비율(%), 기본 100
   setProjectName: (v: string) => void;
   setConfig: (c: AnalysisConfig) => void;
   setSise: (rows: SiseResult[], meta: SiseMeta) => void;
@@ -74,6 +73,8 @@ export interface AppState {
   setRebResult: (r: RebResult | null) => void;
   setKosisResult: (k: KosisResult | null) => void;
   setPriceCalc: (rows: PriceCalcRow[]) => void;
+  setPriceCalcKey: (key: string | null) => void;
+  setPriceCalcRatio: (ratio: number) => void;
   loadSnapshot: (s: Partial<AppState>) => void;
 }
 
@@ -83,7 +84,7 @@ export type SnapshotState = Pick<AppState,
   | 'sise' | 'siseMeta' | 'siseInput' | 'sisePaste' | 'siseConfirmed'
   | 'tx' | 'txMeta' | 'txForm'
   | 'rebResult' | 'kosisResult'
-  | 'priceCalc'
+  | 'priceCalc' | 'priceCalcKey' | 'priceCalcRatio'
 >;
 
 export const useStore = create<AppState>()(
@@ -102,6 +103,8 @@ export const useStore = create<AppState>()(
   rebResult: null,
   kosisResult: null,
   priceCalc: [],
+  priceCalcKey: null,
+  priceCalcRatio: 100,
   setProjectName: (v) => set({ projectName: v }),
   setConfig: (config) => set({ config }),
   setSise: (sise, siseMeta) => set({ sise, siseMeta }),
@@ -115,6 +118,8 @@ export const useStore = create<AppState>()(
   setRebResult: (rebResult) => set({ rebResult }),
   setKosisResult: (kosisResult) => set({ kosisResult }),
   setPriceCalc: (priceCalc) => set({ priceCalc }),
+  setPriceCalcKey: (priceCalcKey) => set({ priceCalcKey }),
+  setPriceCalcRatio: (priceCalcRatio) => set({ priceCalcRatio }),
   loadSnapshot: (s) => set(s),
     }),
     {
@@ -127,7 +132,7 @@ export const useStore = create<AppState>()(
         siseInput: st.siseInput, sisePaste: st.sisePaste, siseConfirmed: st.siseConfirmed,
         tx: st.tx, txMeta: st.txMeta, txForm: st.txForm,
         rebResult: st.rebResult, kosisResult: st.kosisResult,
-        priceCalc: st.priceCalc,
+        priceCalc: st.priceCalc, priceCalcKey: st.priceCalcKey, priceCalcRatio: st.priceCalcRatio,
       }),
     },
   ),

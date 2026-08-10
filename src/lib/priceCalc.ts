@@ -23,6 +23,28 @@ export interface PriceOption {
   disabled?: boolean;
 }
 
+const AREA_BAND_GROUP = '실거래 · 면적 범위(자동)';
+
+/**
+ * 평당매매가격(적용 단가) 종류 정적 목록(값 없음) — 표 상단 공통 선택용.
+ * 실제 값은 행마다(시설·전용면적 기준) buildPriceCatalog·resolveAreaBandOptions로 조회한다.
+ */
+export const PRICE_CATEGORIES: { key: string; group: string; label: string }[] = [
+  { key: 'sise_avg', group: '시세', label: '시세: (전용) 평균가' },
+  { key: 'sise_top10', group: '시세', label: '시세: (전용) 상위10%' },
+  { key: 'sise_top30', group: '시세', label: '시세: (전용) 상위30%' },
+  { key: 'sise_top50', group: '시세', label: '시세: (전용) 상위50%' },
+  { key: 'tx_avg', group: '실거래', label: '실거래: (전용) 전체 평균' },
+  { key: 'tx_top10', group: '실거래', label: '실거래: (전용) 상위 10% 평당가' },
+  { key: 'tx_top30', group: '실거래', label: '실거래: (전용) 상위 30% 평당가' },
+  { key: 'tx_top50', group: '실거래', label: '실거래: (전용) 상위 50% 평당가' },
+  { key: 'tx_recent5', group: '실거래', label: '실거래: (전용) 최근 5년' },
+  { key: 'tx_recent10', group: '실거래', label: '실거래: (전용) 최근 10년' },
+  { key: 'band_auto', group: AREA_BAND_GROUP, label: '실거래: 면적 범위 평균가 (행별 전용면적 자동 적용)' },
+  { key: 'band_r5_auto', group: AREA_BAND_GROUP, label: '실거래: 준공 최근5년 · 면적 범위 평균가 (행별 전용면적 자동 적용)' },
+  { key: 'band_r10_auto', group: AREA_BAND_GROUP, label: '실거래: 준공 최근10년 · 면적 범위 평균가 (행별 전용면적 자동 적용)' },
+];
+
 /** 시설명 → 선택 가능한 매매 단가 옵션 목록(면적범위 제외 고정 10종). 값이 유효(양수)한 옵션만 담는다. */
 export function buildPriceCatalog(
   sise: SiseResult[],
@@ -62,8 +84,6 @@ export function buildPriceCatalog(
   }
   return catalog;
 }
-
-const AREA_BAND_GROUP = '실거래 · 면적 범위(자동)';
 
 /**
  * 전용면적(㎡) 1개 값에 맞는 면적 범위 실거래 평균가 3종(면적범위 전체 / 준공 최근5년 / 준공 최근10년)을

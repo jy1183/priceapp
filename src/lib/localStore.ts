@@ -66,7 +66,8 @@ export async function buildSnapshotWorkbook(snap: SnapshotState): Promise<any> {
   wsRegion.columns.forEach((c: any) => (c.width = 18));
 
   const wsPrice = wb.addWorksheet('가격산정');
-  wsPrice.addRow(['시설', '타입', '평형', '세대수', '전용면적(㎡)', '전용면적(평)', '적용 단가', '평당매매가격(천원/평)', '적용비율(%)', '세대당 매각가(천원)', '총매출(천원)']).font = { bold: true };
+  wsPrice.addRow([`적용 단가(공통): ${snap.priceCalcKey ?? '선택 안 함'} · 적용비율(공통): ${snap.priceCalcRatio}%`]);
+  wsPrice.addRow(['시설', '타입(평형)', '세대수', '전용면적(㎡)', '전용면적(평)', '적용 평당가(천원/평)', '세대당 매각가(천원)', '총매출(천원)']).font = { bold: true };
   const thisYear = new Date().getFullYear();
   const catalog = buildPriceCatalog(snap.sise, snap.tx, snap.config, thisYear);
   const saleTx = snap.tx.filter((t) => t.dealType === '매매');
@@ -74,15 +75,15 @@ export async function buildSnapshotWorkbook(snap: SnapshotState): Promise<any> {
   const bandRecFac = bandByRecencyFacility(saleTx, thisYear);
   snap.priceCalc.forEach((r) => {
     const areaOpts = resolveAreaBandOptions(r.facility, r.exclM2, bandFac, bandRecFac);
-    const opt = [...(catalog.get(r.facility) ?? []), ...areaOpts].find((o) => o.key === r.priceKey && !o.disabled);
+    const opt = [...(catalog.get(r.facility) ?? []), ...areaOpts].find((o) => o.key === snap.priceCalcKey && !o.disabled);
     const pyeong = r.exclM2 != null ? r.exclM2 * PYEONG : null;
-    const applied = opt ? opt.value * (r.applyRatio / 100) : null;
+    const applied = opt ? opt.value * (snap.priceCalcRatio / 100) : null;
     const unitPrice = pyeong != null && applied != null ? pyeong * applied : null;
     const total = unitPrice != null && r.units != null ? unitPrice * r.units : null;
     wsPrice.addRow([
-      r.facility, r.type, r.pyeong, r.units ?? '', r.exclM2 ?? '',
+      r.facility, r.type, r.units ?? '', r.exclM2 ?? '',
       pyeong != null ? Math.round(pyeong * 100) / 100 : '',
-      opt?.label ?? '', opt ? Math.round(opt.value) : '', r.applyRatio,
+      applied != null ? Math.round(applied) : '',
       unitPrice != null ? Math.round(unitPrice) : '', total != null ? Math.round(total) : '',
     ]);
   });
