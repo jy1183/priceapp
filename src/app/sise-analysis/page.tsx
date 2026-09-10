@@ -1,5 +1,5 @@
 'use client';
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useStore } from '@/lib/store';
 import { aggregate } from '@/lib/calc/aggregate';
@@ -7,6 +7,7 @@ import { parseSiseRaw, jeonseDepositPpa } from '@/lib/calc/sise';
 import { PYEONG } from '@/lib/calc/constants';
 import { FacilityChart, BuildingChart } from '@/components/SiseAnalysisCharts';
 import BarChart from '@/components/BarChart';
+import PdfExportButton from '@/components/PdfExportButton';
 import { AREA_BANDS, SISE_RESIDENTIAL, bandAggregate, type BandInput } from '@/lib/areaBands';
 
 /** 평형대 차트용 시설 시리즈 색상 */
@@ -18,7 +19,7 @@ const JEONSE_BAND_COLORS = ['#059669', '#0891b2', '#65a30d', '#0d9488', '#16a34a
 function SectionHead({ tone, title, desc }: { tone: 'blue' | 'emerald' | 'violet'; title: string; desc: string }) {
   const c = { blue: 'border-blue-500', emerald: 'border-emerald-500', violet: 'border-violet-500' }[tone];
   return (
-    <div className={`mt-10 mb-4 border-l-4 ${c} pl-3`}>
+    <div className={`mt-10 mb-4 border-l-4 ${c} pl-3`} data-pdf-block data-pdf-group-start>
       <h2 className="text-xl font-bold">{title}</h2>
       <p className="mt-1 text-sm text-gray-600">{desc}</p>
     </div>
@@ -28,6 +29,7 @@ function SectionHead({ tone, title, desc }: { tone: 'blue' | 'emerald' | 'violet
 /** ④ 시세 분석 — /sise에서 확정한 시세의 매매·전세 평당가 집계 및 전세가율 분석 */
 export default function SiseAnalysisPage() {
   const { sise, config, siseConfirmed, siseInput } = useStore();
+  const pdfRef = useRef<HTMLDivElement>(null);
 
   // ── A. 매매(월세 환산 포함) 시설별 집계 — 전세 행(평당가 0)은 deal 기준으로 제외 ──
   const rows = useMemo(() => {
@@ -236,11 +238,15 @@ export default function SiseAnalysisPage() {
   const fmtPct = (v: number | null) => (v != null && Number.isFinite(v) ? v.toFixed(1) + '%' : '-');
 
   return (
-    <div className="max-w-5xl">
+    <div className="max-w-5xl" ref={pdfRef}>
       <h1 className="mb-1 text-2xl font-bold">시세 분석</h1>
       <p className="mb-4 text-sm text-gray-600">
         <b>① 시세 입력</b>에서 파싱·확정한 시세를 <b>매매(월세 환산 포함)</b>·<b>전세</b>로 구분해 평당가로 집계하고, 매매 대비 전세 비율(전세가율)을 분석합니다. 단독·상가주택 등은 대지 기준이며, 소스에 연면적이 있으면 연면적 기준도 함께 표시합니다. 단위 천원/평.
       </p>
+
+      <div className="mb-4">
+        <PdfExportButton targetRef={pdfRef} fileName={`시세분석_${new Date().toISOString().slice(0, 10)}.pdf`} />
+      </div>
 
       {rows.length === 0 && jeonseRows.length === 0 ? (
         <div className="rounded border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-800">
@@ -259,7 +265,7 @@ export default function SiseAnalysisPage() {
             </div>
           ) : (
           <>
-          <div className="overflow-x-auto rounded-lg border bg-white">
+          <div className="overflow-x-auto rounded-lg border bg-white" data-pdf-block>
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-left text-gray-600">
                 <tr>
@@ -301,11 +307,11 @@ export default function SiseAnalysisPage() {
           {/* 평형대별 평균 가격 분석 */}
           {bandRows.facilities.length > 0 && (
             <div className="mt-8">
-              <h3 className="mb-1 text-lg font-semibold">평형대별 평균 가격 분석 (전용면적 기준)</h3>
+              <h3 className="mb-1 text-lg font-semibold" data-pdf-block data-pdf-group-start>평형대별 평균 가격 분석 (전용면적 기준)</h3>
               <p className="mb-3 text-sm text-gray-600">
                 주거 상품(아파트·오피스텔·빌라／연립·단독/다가구·전원주택)만 집계합니다. 전용면적 기준 구분이며, 단독/다가구·전원주택은 전용면적이 없으면 연면적으로 분류합니다. 월세는 매매환산 평당가, 환산가 미산출(0)·결측 행은 집계에서 제외합니다. 단위 천원/평.
               </p>
-              <div className="overflow-x-auto rounded-lg border bg-white">
+              <div className="overflow-x-auto rounded-lg border bg-white" data-pdf-block>
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 text-left text-gray-600">
                     <tr>
@@ -345,7 +351,7 @@ export default function SiseAnalysisPage() {
 
           {/* 건물명별 상위 5 */}
           <div className="mt-8">
-            <h3 className="mb-1 text-lg font-semibold">건물별 평균 평당가 상위 5</h3>
+            <h3 className="mb-1 text-lg font-semibold" data-pdf-block data-pdf-group-start>건물별 평균 평당가 상위 5</h3>
             <p className="mb-3 text-sm text-gray-600">
               소스 리스트에서 <b>건물명</b>이 있는 매매·월세 매물을 건물명 기준으로 묶어 전용 평당가 평균을 구한 뒤 상위 5개를 표시합니다. 단위 천원/평.
             </p>
@@ -355,7 +361,7 @@ export default function SiseAnalysisPage() {
               </div>
             ) : (
               <>
-                <div className="overflow-x-auto rounded-lg border bg-white">
+                <div className="overflow-x-auto rounded-lg border bg-white" data-pdf-block>
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 text-left text-gray-600">
                       <tr>
@@ -395,7 +401,7 @@ export default function SiseAnalysisPage() {
           ) : (
             <>
               {/* 전세 시설별 평당가 */}
-              <div className="overflow-x-auto rounded-lg border bg-white">
+              <div className="overflow-x-auto rounded-lg border bg-white" data-pdf-block>
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 text-left text-gray-600">
                     <tr>
@@ -436,11 +442,11 @@ export default function SiseAnalysisPage() {
               {/* 전세 평형대별 평균 가격 */}
               {jeonseBandRows.facilities.length > 0 && (
                 <div className="mt-8">
-                  <h3 className="mb-1 text-lg font-semibold">평형대별 전세 평균 가격 분석 (전용면적 기준)</h3>
+                  <h3 className="mb-1 text-lg font-semibold" data-pdf-block data-pdf-group-start>평형대별 전세 평균 가격 분석 (전용면적 기준)</h3>
                   <p className="mb-3 text-sm text-gray-600">
                     주거 상품(아파트·오피스텔·빌라／연립·단독/다가구·전원주택) 전세만 집계합니다. 전용면적 기준 구분이며, 단독/다가구·전원주택은 전용면적이 없으면 연면적으로 분류합니다. 단위 천원/평.
                   </p>
-                  <div className="overflow-x-auto rounded-lg border bg-white">
+                  <div className="overflow-x-auto rounded-lg border bg-white" data-pdf-block>
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 text-left text-gray-600">
                         <tr>
@@ -480,7 +486,7 @@ export default function SiseAnalysisPage() {
 
               {/* 전세 건물명별 상위 5 */}
               <div className="mt-8">
-                <h3 className="mb-1 text-lg font-semibold">건물별 전세 평균 평당가 상위 5</h3>
+                <h3 className="mb-1 text-lg font-semibold" data-pdf-block data-pdf-group-start>건물별 전세 평균 평당가 상위 5</h3>
                 <p className="mb-3 text-sm text-gray-600">
                   소스 리스트에서 <b>건물명</b>이 있는 전세 매물을 건물명 기준으로 묶어 전용 평당가 평균을 구한 뒤 상위 5개를 표시합니다. 단위 천원/평.
                 </p>
@@ -490,7 +496,7 @@ export default function SiseAnalysisPage() {
                   </div>
                 ) : (
                   <>
-                    <div className="overflow-x-auto rounded-lg border bg-white">
+                    <div className="overflow-x-auto rounded-lg border bg-white" data-pdf-block>
                       <table className="w-full text-sm">
                         <thead className="bg-gray-50 text-left text-gray-600">
                           <tr>
@@ -531,9 +537,9 @@ export default function SiseAnalysisPage() {
           ) : (
             <>
               {/* 시설별 전세가율 */}
-              <h3 className="mb-1 text-lg font-semibold">시설별 전세가율</h3>
+              <h3 className="mb-1 text-lg font-semibold" data-pdf-block data-pdf-group-start>시설별 전세가율</h3>
               <p className="mb-3 text-sm text-gray-600">전용면적 기준 평균 평당가 비교. 괄호는 표본 건수. 단위 천원/평.</p>
-              <div className="overflow-x-auto rounded-lg border bg-white">
+              <div className="overflow-x-auto rounded-lg border bg-white" data-pdf-block>
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 text-left text-gray-600">
                     <tr>
@@ -564,9 +570,9 @@ export default function SiseAnalysisPage() {
               {/* 평형대별 전세가율 */}
               {ratioBand.facilities.length > 0 && (
                 <div className="mt-8">
-                  <h3 className="mb-1 text-lg font-semibold">평형대별 전세가율</h3>
+                  <h3 className="mb-1 text-lg font-semibold" data-pdf-block data-pdf-group-start>평형대별 전세가율</h3>
                   <p className="mb-3 text-sm text-gray-600">각 평형대에서 매매·전세 평균이 모두 산출된 셀만 전세가율(%)을 표시합니다.</p>
-                  <div className="overflow-x-auto rounded-lg border bg-white">
+                  <div className="overflow-x-auto rounded-lg border bg-white" data-pdf-block>
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 text-left text-gray-600">
                         <tr>
@@ -600,7 +606,7 @@ export default function SiseAnalysisPage() {
 
               {/* 물건별 매매/전세가 비교 리스트 */}
               <div className="mt-8">
-                <h3 className="mb-1 text-lg font-semibold">물건별 매매/전세가 비교 리스트</h3>
+                <h3 className="mb-1 text-lg font-semibold" data-pdf-block data-pdf-group-start>물건별 매매/전세가 비교 리스트</h3>
                 <p className="mb-3 text-sm text-gray-600">
                   같은 건물명(동 차이는 무시)·같은 평형(전용 기준, 소수점 첫째 자리 차이는 동일 평형으로 취급)에 매매가와 전세가가 모두 있는 물건만 표시합니다. 동일 조건에 매매 또는 전세가 여러 건이면 평균값을 사용합니다. 단위 천원.
                 </p>
@@ -609,7 +615,7 @@ export default function SiseAnalysisPage() {
                     같은 건물명·같은 평형에 매매·전세가 모두 있는 물건이 없습니다.
                   </div>
                 ) : (
-                  <div className="overflow-x-auto rounded-lg border bg-white">
+                  <div className="overflow-x-auto rounded-lg border bg-white" data-pdf-block>
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 text-left text-gray-600">
                         <tr>

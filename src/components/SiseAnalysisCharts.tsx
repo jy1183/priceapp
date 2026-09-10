@@ -33,7 +33,7 @@ export function FacilityChart({ rows, title = '시설별 평당가(전용/대지
     ],
   };
   return (
-    <div className="rounded-lg border bg-white p-2">
+    <div className="rounded-lg border bg-white p-2" data-pdf-block>
       <ReactECharts option={opt} style={{ height: 340 }} />
     </div>
   );
@@ -53,7 +53,7 @@ export function BuildingChart({ rows, title = '건물별 평균 평당가(전용
     series: [{ type: 'bar', data: data.map((r) => Math.round(r.avg)), itemStyle: { color }, barMaxWidth: 48, label: barLabel }],
   };
   return (
-    <div className="rounded-lg border bg-white p-2">
+    <div className="rounded-lg border bg-white p-2" data-pdf-block>
       <ReactECharts option={opt} style={{ height: 300 }} />
     </div>
   );

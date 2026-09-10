@@ -1,6 +1,6 @@
 'use client';
 // 종합검토 결과 — ① 매매 시세vs실거래, ② 전세가 시세vs실거래, ③ 전세가율 검토, ④ 시세·⑤ 실거래 평형대별 매매/전세 비교, ⑥ 매매가vs환산가, ⑦ 환산가 자본환원율 보정
-import { Fragment, useMemo } from 'react';
+import { Fragment, useMemo, useRef } from 'react';
 import { useStore } from '@/lib/store';
 import { buildSummaryRows, buildJeonseSummaryRows, type SummaryRow } from '@/lib/summary';
 import ExportBar from '@/components/ExportBar';
@@ -21,7 +21,7 @@ const fmtPct = (v: number) => (Number.isFinite(v) ? v.toFixed(1) + '%' : '-');
 function SectionHead({ tone, title, desc }: { tone: 'blue' | 'emerald' | 'violet' | 'amber' | 'rose' | 'cyan' | 'slate'; title: string; desc: string }) {
   const c = { blue: 'border-blue-500', emerald: 'border-emerald-500', violet: 'border-violet-500', amber: 'border-amber-500', rose: 'border-rose-500', cyan: 'border-cyan-500', slate: 'border-slate-500' }[tone];
   return (
-    <div className={`mt-10 mb-4 border-l-4 ${c} pl-3`}>
+    <div className={`mt-10 mb-4 border-l-4 ${c} pl-3`} data-pdf-block data-pdf-group-start>
       <h2 className="text-xl font-bold">{title}</h2>
       <p className="mt-1 text-sm text-gray-600">{desc}</p>
     </div>
@@ -31,7 +31,7 @@ function SectionHead({ tone, title, desc }: { tone: 'blue' | 'emerald' | 'violet
 /** 시세 vs 실거래 비교표 — 매매·전세 공용. 괴리는 평균 기준이므로 제목에 (평균) 표기 */
 function CompareTable({ rows }: { rows: { f: string; sa: SummaryRow['sise']; ta: SummaryRow['tx']; gap: number }[] }) {
   return (
-    <div className="overflow-x-auto rounded-lg border bg-white">
+    <div className="overflow-x-auto rounded-lg border bg-white" data-pdf-block>
       <table className="w-full text-sm">
         <thead className="bg-gray-50 text-gray-600">
           <tr>
@@ -92,7 +92,7 @@ function BandCompareBlock({ sale, jeonse, chartTitle, emptyMsg }: {
   }
   return (
     <>
-      <div className="overflow-x-auto rounded-lg border bg-white">
+      <div className="overflow-x-auto rounded-lg border bg-white" data-pdf-block>
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-left text-gray-600">
             <tr>
@@ -160,6 +160,7 @@ function BandCompareBlock({ sale, jeonse, chartTitle, emptyMsg }: {
 /** 가격검토종합 — 시세 vs 실거래(매매·전세) 비교 및 시세 평형대별 매매/전세 비교 */
 export default function SummaryPage() {
   const { sise, tx, config, txMeta, siseInput } = useStore();
+  const pdfRef = useRef<HTMLDivElement>(null);
 
   // ── 1. 매매: 시세 vs 실거래 시설별 집계 ──
   const rows = useMemo(
@@ -238,13 +239,13 @@ export default function SummaryPage() {
     || txSaleBand.facilities.length > 0 || txJeonseBand.facilities.length > 0;
 
   return (
-    <div className="max-w-6xl">
+    <div className="max-w-6xl" ref={pdfRef}>
       <h1 className="mb-1 text-2xl font-bold">종합 검토 — 시세 vs 실거래</h1>
       <p className="mb-4 text-sm text-gray-600">
         시세 분석(확정)과 실거래 조회 결과를 매매·전세로 구분해 시설별 전용 평당가로 비교하고, 시세·실거래 각각의 평형대별 매매가/전세가를 비교합니다. 단위 천원/평.
       </p>
 
-      <ExportBar />
+      <ExportBar targetRef={pdfRef} />
 
       {!hasAny ? (
         <div className="rounded border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-800">
@@ -308,7 +309,7 @@ export default function SummaryPage() {
             </div>
           ) : (
             <>
-              <div className="overflow-x-auto rounded-lg border bg-white">
+              <div className="overflow-x-auto rounded-lg border bg-white" data-pdf-block>
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 text-gray-600">
                     <tr>
@@ -410,7 +411,7 @@ export default function SummaryPage() {
             </div>
           ) : (
             <>
-              <div className="overflow-x-auto rounded-lg border bg-white">
+              <div className="overflow-x-auto rounded-lg border bg-white" data-pdf-block>
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 text-gray-600">
                     <tr>
@@ -473,7 +474,7 @@ export default function SummaryPage() {
                   <span className="ml-2 font-bold text-slate-800">{Number.isFinite(capFix.xRecent5) ? `${(capFix.xRecent5 * 100).toFixed(2)}%` : '산출 불가'}</span>
                 </div>
               </div>
-              <div className="overflow-x-auto rounded-lg border bg-white">
+              <div className="overflow-x-auto rounded-lg border bg-white" data-pdf-block>
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 text-gray-600">
                     <tr>

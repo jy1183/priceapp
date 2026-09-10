@@ -1,8 +1,9 @@
 'use client';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useStore } from '@/lib/store';
 import BarChart from '@/components/BarChart';
+import PdfExportButton from '@/components/PdfExportButton';
 import {
   DEAL_TYPES, DEAL_LABELS, BUILD_BUCKETS, type DealType,
   facilityAgg, facilityByRecency, facilityByAgeBucket,
@@ -32,6 +33,7 @@ export default function TxAnalysisPage() {
   const [deal, setDeal] = useState<Mode>('매매');
   const [selectedBuilding, setSelectedBuilding] = useState<string | null>(null);
   const thisYear = new Date().getFullYear();
+  const pdfRef = useRef<HTMLDivElement>(null);
 
   const dealRows = useMemo(() => (deal === '종합' ? [] : tx.filter((r) => r.dealType === deal)), [tx, deal]);
   const topSaleJeonse = useMemo(() => topBuildingsSaleJeonse(tx, 20), [tx]);
@@ -66,13 +68,17 @@ export default function TxAnalysisPage() {
   const dl = deal === '종합' || deal === '월임대료' ? deal : DEAL_LABELS[deal];
 
   return (
-    <div className="max-w-6xl">
+    <div className="max-w-6xl" ref={pdfRef}>
       <h1 className="mb-1 text-2xl font-bold">실거래 분석</h1>
       <p className="mb-4 text-sm text-gray-600">
         <b>② 실거래 조회</b>로 가져온 실거래를 거래방식·준공연도별로 분석합니다. 단위 천원/평.
         전세는 <b>보증금 평당가</b>, 월세는 <b>환산 평당가</b>(월세 매매환산) 기준입니다. 각 블록은 표를 먼저, 이어서 차트를 표시합니다.
         <br />평당가 면적 기준 — 아파트·오피스텔·연립다세대: 전용 / 단독다가구: 대지 / 토지: 계약 / 상업업무용: 연면적.
       </p>
+
+      <div className="mb-4">
+        <PdfExportButton targetRef={pdfRef} fileName={`실거래분석_${new Date().toISOString().slice(0, 10)}.pdf`} />
+      </div>
 
       {tx.length === 0 ? (
         <div className="rounded border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-800">
@@ -459,7 +465,7 @@ export default function TxAnalysisPage() {
 /** 월임대료 탭의 대제목 — 매매/전세/월세 데이터 분석 결과 구분 + 산식 표기 */
 function GroupHeading({ title, formula }: { title: string; formula: string }) {
   return (
-    <div className="mb-3 mt-6 border-t-2 border-gray-800 pt-3 first:mt-0">
+    <div className="mb-3 mt-6 border-t-2 border-gray-800 pt-3 first:mt-0" data-pdf-block data-pdf-group-start>
       <h2 className="text-lg font-bold">{title}</h2>
       <p className="mt-0.5 text-xs text-gray-500">
         {formula} · 기준보증금 {STD_DEPOSIT_MANWON.toLocaleString()}만원 · 평당 천원/평·월
@@ -621,13 +627,13 @@ function RentSections({ rows, config, thisYear, dealLabel }: {
 function Section({ title, note, children }: { title: string; note?: string; children: ReactNode }) {
   return (
     <div className="mb-6">
-      <h2 className="mb-0.5 text-base font-semibold">{title}</h2>
+      <h2 className="mb-0.5 text-base font-semibold" data-pdf-block data-pdf-group-start>{title}</h2>
       {note && <p className="mb-2 text-xs text-gray-500">{note}</p>}
       {children}
     </div>
   );
 }
-const TableBox = ({ children }: { children: ReactNode }) => <div className="overflow-x-auto rounded-lg border bg-white">{children}</div>;
+const TableBox = ({ children }: { children: ReactNode }) => <div className="overflow-x-auto rounded-lg border bg-white" data-pdf-block>{children}</div>;
 const Th = ({ children, className = '' }: { children: ReactNode; className?: string }) => <th className={`px-3 py-2 text-right ${className}`}>{children}</th>;
 const Td = ({ children, className = '' }: { children: ReactNode; className?: string }) => <td className={`px-3 py-1.5 text-right ${className}`}>{children}</td>;
 const Empty = () => <div className="rounded-lg border bg-white px-3 py-3 text-sm text-gray-400">해당 조건의 데이터가 없습니다.</div>;

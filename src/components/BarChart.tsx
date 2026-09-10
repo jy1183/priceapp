@@ -42,7 +42,7 @@ export default function BarChart({
   };
   if (x.length === 0) return null;
   return (
-    <div className="mt-2 rounded-lg border bg-white p-2">
+    <div className="mt-2 rounded-lg border bg-white p-2" data-pdf-block>
       <ReactECharts option={option} style={{ height }} />
     </div>
   );
