@@ -19,8 +19,26 @@ export interface TxRecord {
   dealDate: string | null;   // YYYY-MM-DD (거래일)
   floor: number | null;
   ppa: number | null;        // 전용/기준 평당가 (천원/평)
+  buyer?: string | null;     // 매수자 구분(buyerGbn: 개인/법인/공공기관/기타) — 매매만. 예전 저장 데이터엔 없을 수 있어 buyerOf 사용
+  seller?: string | null;    // 매도자 구분(slerGbn)
   raw: Record<string, unknown>;
 }
+
+const gbn = (v: unknown): string | null => {
+  const s = v == null ? '' : String(v).trim();
+  return s === '' ? null : s;
+};
+
+/** 매수자 구분 — 정규화 필드가 없는 예전 저장 레코드는 raw.buyerGbn에서 복원 */
+export const buyerOf = (r: Pick<TxRecord, 'buyer' | 'raw'>): string | null =>
+  r.buyer !== undefined ? r.buyer : gbn(r.raw?.buyerGbn);
+/** 매도자 구분 — 정규화 필드가 없는 예전 저장 레코드는 raw.slerGbn에서 복원 */
+export const sellerOf = (r: Pick<TxRecord, 'seller' | 'raw'>): string | null =>
+  r.seller !== undefined ? r.seller : gbn(r.raw?.slerGbn);
+
+/** 컬럼 키로 셀 값 읽기 — 매수자·매도자는 예전 레코드 호환을 위해 헬퍼 경유 */
+export const txValue = (r: TxRecord, key: keyof TxRecord): unknown =>
+  key === 'buyer' ? buyerOf(r) : key === 'seller' ? sellerOf(r) : r[key];
 
 /** 시설별 평당가 면적 기준 라벨 (R1) — 표기 전용, 계산에는 미사용 */
 export const PPA_BASIS: Record<Facility, string> = {
@@ -84,6 +102,7 @@ export function normalize(
     depositManwon: deposit, monthlyRentManwon: monthly,
     dealDate, floor: num(it.floor),
     ppa: ppa != null && Number.isFinite(ppa) ? Math.round(ppa * 100) / 100 : null,
+    buyer: gbn(it.buyerGbn), seller: gbn(it.slerGbn),
     raw: it,
   };
 }

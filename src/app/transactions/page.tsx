@@ -1,6 +1,6 @@
 'use client';
 import { useMemo, useState } from 'react';
-import { normalize, type TxRecord } from '@/lib/normalize';
+import { normalize, txValue, type TxRecord } from '@/lib/normalize';
 import type { Facility, Trade } from '@/lib/molit';
 import RegionPicker, { type RegionValue } from '@/components/RegionPicker';
 import { useStore } from '@/lib/store';
@@ -125,9 +125,11 @@ export default function TransactionsPage() {
       { key: 'depositManwon', label: '보증금(만원)', fmt: (v) => v?.toLocaleString() ?? '' },
       { key: 'monthlyRentManwon', label: '월세(만원)', fmt: (v) => v?.toLocaleString() ?? '' },
       { key: 'floor', label: '층' },
+      { key: 'buyer', label: '매수자' },
+      { key: 'seller', label: '매도자' },
       { key: 'ppa', label: '평당가(천원/평)', fmt: (v) => v?.toLocaleString() ?? '' },
     ];
-    return defs.filter((c) => rows.some((r) => r[c.key] != null && r[c.key] !== ''));
+    return defs.filter((c) => rows.some((r) => { const v = txValue(r, c.key); return v != null && v !== ''; }));
   }, [rows]);
 
   // 필터 컬럼별 고유값 목록 (드롭다운 옵션)
@@ -287,7 +289,7 @@ export default function TransactionsPage() {
                   <tr key={i} className="border-t">
                     {cols.map((c) => (
                       <td key={String(c.key)} className="whitespace-nowrap px-3 py-1.5">
-                        {c.fmt ? c.fmt(r[c.key]) : (r[c.key] as any) ?? ''}
+                        {c.fmt ? c.fmt(txValue(r, c.key)) : (txValue(r, c.key) as any) ?? ''}
                       </td>
                     ))}
                   </tr>
