@@ -144,41 +144,20 @@ export async function sectionsToPdfBlob(sectionEls: HTMLElement[]): Promise<Blob
   return pdf.output('blob');
 }
 
-const canPickFolder = () => typeof window !== 'undefined' && typeof window.showDirectoryPicker === 'function';
+/** Chrome/Edge처럼 폴더 선택(File System Access)을 지원하는지 */
+export const canPickFolder = () => typeof window !== 'undefined' && typeof window.showDirectoryPicker === 'function';
 
-function downloadBlob(blob: Blob, name: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = url; a.download = name; a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
-/** 파일들을 저장 — Chrome/Edge는 폴더 선택 후 동시 기록, 그 외는 다운로드 폴더로 개별 저장 */
-export async function saveFilesToFolder(files: { name: string; blob: Blob }[]): Promise<'folder' | 'download'> {
-  if (canPickFolder()) {
-    const dir = await window.showDirectoryPicker!({ mode: 'readwrite' });
-    for (const f of files) {
-      const handle = await dir.getFileHandle(f.name, { create: true });
-      const w = await handle.createWritable();
-      await w.write(f.blob);
-      await w.close();
-    }
-    return 'folder';
-  }
-  files.forEach((f) => downloadBlob(f.blob, f.name));
-  return 'download';
-}
-
-/** 파일 선택 탐색창(.xlsx)을 열어 선택된 파일을 ArrayBuffer로 반환 (모든 브라우저 공통 — input[type=file]) */
-export function pickXlsxFile(): Promise<ArrayBuffer | null> {
+/** 파일 선택 탐색창(.xlsx 또는 패키지의 snapshot.js)을 열어 선택된 File을 반환 (모든 브라우저 공통 — input[type=file]) */
+export function pickSnapshotFile(): Promise<File | null> {
   return new Promise((resolve) => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.xlsx';
+    input.accept = '.xlsx,.js';
     let settled = false;
-    const finish = async (file: File | undefined) => {
+    const finish = (file: File | undefined) => {
       if (settled) return;
       settled = true;
-      resolve(file ? await file.arrayBuffer() : null);
+      resolve(file ?? null);
     };
     input.onchange = () => finish(input.files?.[0]);
     // 탐색창을 취소했을 때는 change가 발생하지 않으므로 cancel로 대기가 멈추지 않게 함

@@ -1,6 +1,9 @@
 // HTML 패키지(snapshot.js·로더 HTML) 생성·파싱 왕복 무손실 검증
 import { describe, it, expect } from 'vitest';
-import { buildSnapshotJs, parseSnapshotJs, buildPackageHtml, sanitizePackageName, dataFolderName } from '@/lib/packageWriter';
+import {
+  buildSnapshotJs, parseSnapshotJs, buildPackageHtml, sanitizePackageName, dataFolderName,
+  writePackageToFolder, readPackageSnapshot, findPackageNames,
+} from '@/lib/packageWriter';
 import { DEFAULT_CONFIG } from '@/lib/calc/constants';
 import type { SnapshotState } from '@/lib/store';
 
@@ -80,5 +83,75 @@ describe('packageWriter 로더 HTML', () => {
 describe('sanitizePackageName', () => {
   it('파일명에 쓸 수 없는 문자를 제거한다', () => {
     expect(sanitizePackageName(' a/b:c*d?"e<f>g|h. ')).toBe('abcdefgh');
+  });
+});
+
+/** 폴더 핸들 최소 모의 — 쓰기 순서와 덮어쓰기 검증용 (브라우저 폴더 피커는 자동 테스트 불가) */
+class FakeFile {
+  kind = 'file' as const;
+  content = '';
+  constructor(public name: string, private log: string[], private path: string) {}
+  async getFile() { const c = this.content; return { text: async () => c }; }
+  async createWritable() {
+    let buf = '';
+    return {
+      write: async (d: string | Blob) => { buf = typeof d === 'string' ? d : await d.text(); },
+      close: async () => { this.content = buf; this.log.push(this.path); },
+    };
+  }
+}
+class FakeDir {
+  kind = 'directory' as const;
+  children = new Map<string, FakeDir | FakeFile>();
+  constructor(public name: string, private log: string[] = [], private path = '') {}
+  async getFileHandle(name: string, o?: { create?: boolean }) {
+    let c = this.children.get(name);
+    if (!c) { if (!o?.create) throw Object.assign(new Error('NotFound'), { name: 'NotFoundError' }); c = new FakeFile(name, this.log, `${this.path}${name}`); this.children.set(name, c); }
+    return c as FakeFile;
+  }
+  async getDirectoryHandle(name: string, o?: { create?: boolean }) {
+    let c = this.children.get(name);
+    if (!c) { if (!o?.create) throw Object.assign(new Error('NotFound'), { name: 'NotFoundError' }); c = new FakeDir(name, this.log, `${this.path}${name}/`); this.children.set(name, c); }
+    return c as FakeDir;
+  }
+  async *values() { for (const c of this.children.values()) yield c; }
+}
+
+describe('packageWriter 폴더 기록·재저장', () => {
+  const name = '20261119_영등포동8가_주변가격분석';
+  const input = (s: SnapshotState, css = 'body{}') => ({
+    name, snap: s, xlsx: new Blob(['x']), pdf: new Blob(['p']),
+    meta: { name, savedAt: '2026-11-19T00:00:00.000Z', appOrigin: 'https://app.example.com' },
+    assets: { js: 'window.__PRICEAPP_VIEWER_READY__=true;', css },
+  });
+
+  it('_data 파일을 먼저, HTML을 마지막에 기록하고 스냅샷을 다시 읽을 수 있다', async () => {
+    const log: string[] = [];
+    const dir = new FakeDir('저장폴더', log);
+    await writePackageToFolder(dir as unknown as FileSystemDirectoryHandle, input(snap));
+    expect(log[log.length - 1]).toBe(`${name}.html`);
+    expect(log.slice(0, -1).every((p) => p.startsWith(`${name}_data/`))).toBe(true);
+    expect(log.map((p) => p.split('/').pop())).toEqual(expect.arrayContaining(['snapshot.js', 'viewer.js', 'viewer.css', `${name}.xlsx`, `${name}.pdf`, `${name}.html`]));
+    expect(await readPackageSnapshot(dir as unknown as FileSystemDirectoryHandle, name)).toEqual(snap);
+    expect(await findPackageNames(dir as unknown as FileSystemDirectoryHandle)).toEqual([name]);
+  });
+
+  it('같은 이름으로 다시 저장하면 파일이 늘지 않고 내용만 최신으로 덮어쓴다', async () => {
+    const dir = new FakeDir('저장폴더');
+    const h = dir as unknown as FileSystemDirectoryHandle;
+    await writePackageToFolder(h, input(snap));
+    const data = dir.children.get(dataFolderName(name)) as FakeDir;
+    const before = { root: dir.children.size, data: data.children.size };
+    const changed: SnapshotState = { ...snap, projectName: '수정된 프로젝트', priceCalcRatio: 90 };
+    await writePackageToFolder(h, input(changed, 'body{color:red}'));
+    expect({ root: dir.children.size, data: data.children.size }).toEqual(before);
+    expect(await readPackageSnapshot(h, name)).toEqual(changed);
+    expect(((await data.getFileHandle('viewer.css')) as FakeFile).content).toBe('body{color:red}');
+  });
+
+  it('패키지가 아닌 폴더에서는 이름 목록이 비어 있다', async () => {
+    const dir = new FakeDir('빈폴더');
+    await dir.getDirectoryHandle('아무_data', { create: true });
+    expect(await findPackageNames(dir as unknown as FileSystemDirectoryHandle)).toEqual([]);
   });
 });
