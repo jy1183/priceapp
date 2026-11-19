@@ -1,11 +1,12 @@
 'use client';
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { normalize, txValue, type TxRecord } from '@/lib/normalize';
 import type { Facility, Trade } from '@/lib/molit';
 import RegionPicker, { type RegionValue } from '@/components/RegionPicker';
 import { useStore } from '@/lib/store';
 import {
-  FILTER_KEYS, distinctValues, applyFilters, sortByBuildYear,
+  FILTER_KEYS, distinctValues, applyFilters, sortByBuildYear, describeFilters, buildSetLabel,
   type FilterKey, type TxFilters, type SortDir,
 } from '@/lib/txFilter';
 
@@ -64,6 +65,8 @@ export default function TransactionsPage() {
   const rows = useStore((st) => st.tx);            // 표시 소스 = 스토어(유지)
   const setTxStore = useStore((st) => st.setTx);
   const appendTx = useStore((st) => st.appendTx);
+  const txMeta = useStore((st) => st.txMeta);
+  const addFilteredSet = useStore((st) => st.addFilteredSet);
   const region: RegionValue = { sido: txForm.sido, lawdCd: txForm.lawdCd, dong: txForm.dong };
   const setRegion = (r: RegionValue) => setTxForm({ sido: r.sido, lawdCd: r.lawdCd, dong: r.dong });
   const facility = txForm.facility as Facility;
@@ -82,13 +85,15 @@ export default function TransactionsPage() {
   const [filterSearch, setFilterSearch] = useState('');
   // 준공연도 정렬: 오름차순 → 내림차순 → 해제
   const [sortDir, setSortDir] = useState<SortDir>(null);
+  // '결과 값 보내기' 직후 안내 (저장 용량 초과 시 warn)
+  const [sent, setSent] = useState<{ count: number; warn: boolean } | null>(null);
 
   // 추가 조회 라인 (기존 데이터에 누적)
   const [extras, setExtras] = useState<(QueryForm & { id: number })[]>([]);
   const [extraState, setExtraState] = useState<Record<number, { loading: boolean; err: string; added: number | null }>>({});
 
   async function query() {
-    setLoading(true); setErr(''); setFilters({}); setOpenFilter(null); setSortDir(null);
+    setLoading(true); setErr(''); setFilters({}); setOpenFilter(null); setSortDir(null); setSent(null);
     try {
       const all = await fetchTx({ lawdCd: region.lawdCd, dong: region.dong, facility, trade, from, to });
       setTxStore(all, { facility, trade, region: `${region.sido} ${region.dong}`.trim(), from, to });
@@ -170,6 +175,21 @@ export default function TransactionsPage() {
     const set = filters[key];
     return !!set && set.size < (distinct[key]?.length ?? 0);
   };
+  // 화면에 보이는 필터·정렬 결과(순서 그대로)를 필터링 데이터로 보낸다
+  function sendResult() {
+    if (displayRows.length === 0) return;
+    const filterDesc = describeFilters(rows, filters, sortDir);
+    let warn = false;
+    try {
+      addFilteredSet({
+        rows: displayRows, filterDesc, meta: txMeta,
+        buildLabel: (seq) => buildSetLabel(seq, displayRows, filterDesc),
+      });
+    } catch {
+      warn = true; // 브라우저 저장소(localStorage) 용량 초과 — 이번 화면에는 반영되나 새로고침 시 유실될 수 있음
+    }
+    setSent({ count: displayRows.length, warn });
+  }
   const cycleSort = () => setSortDir((d) => (d === null ? 'asc' : d === 'asc' ? 'desc' : null));
 
   return (
@@ -260,6 +280,16 @@ export default function TransactionsPage() {
               기준: {facility}·{trade}, {rows.length}건
               {filteredRows.length !== rows.length && ` · 필터 ${filteredRows.length}건`}
             </span>
+            <button onClick={sendResult} disabled={displayRows.length === 0}
+              className="rounded-md border border-blue-300 px-3 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 disabled:opacity-50">
+              결과 값 보내기
+            </button>
+            {sent && (
+              <span className="text-xs text-emerald-700">
+                필터링 데이터로 {sent.count}건 보냄 — <Link href="/tx-filtered" className="font-medium underline">바로가기</Link>
+                {sent.warn && <span className="ml-2 text-amber-700">브라우저 저장 용량 초과로 새로고침 시 사라질 수 있습니다. 엑셀 저장을 권장합니다.</span>}
+              </span>
+            )}
           </div>
 
           <div className="overflow-x-auto rounded-lg border bg-white">

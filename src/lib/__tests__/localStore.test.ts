@@ -24,6 +24,7 @@ const snap: SnapshotState = {
   priceCalc: [],
   priceCalcKey: null,
   priceCalcRatio: 100,
+  filteredSets: [],
 };
 
 describe('localStore 저장/불러오기 왕복', () => {

@@ -24,6 +24,7 @@ export default function ProjectBar() {
       tx: s.tx, txMeta: s.txMeta, txForm: s.txForm,
       rebResult: s.rebResult, kosisResult: s.kosisResult,
       priceCalc: s.priceCalc, priceCalcKey: s.priceCalcKey, priceCalcRatio: s.priceCalcRatio,
+      filteredSets: s.filteredSets,
     };
   }
 
