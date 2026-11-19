@@ -47,6 +47,11 @@ describe('filteredSets 스토어', () => {
     expect(s.rows[0].seller).toBe('개인');
   });
 
+  it('단독다가구 평형대 분류용 연면적(totalFloorAr)은 raw에 남긴다', () => {
+    const s = send([mk({ facility: '단독다가구', raw: { totalFloorAr: '123.4', big: 'x' } })]);
+    expect(s.rows[0].raw).toEqual({ totalFloorAr: '123.4' });
+  });
+
   it('차트는 추가 순서대로 쌓이고 같은 블록 중복도 허용하며 개별 삭제된다', () => {
     const s = send([mk()]);
     const { addChart, removeChart } = useStore.getState();

@@ -44,8 +44,14 @@ export interface FilteredSetInput {
   buildLabel: (seq: number) => string;
 }
 
-/** raw를 비운 표시·집계용 사본 — 매수자·매도자는 raw에서 복원해 정규화 필드로 옮긴다 */
-export const stripRaw = (r: TxRecord): TxRecord => ({ ...r, buyer: buyerOf(r), seller: sellerOf(r), raw: {} });
+/** 집계가 raw에서 직접 읽는 필드 — 단독다가구 평형대 분류용 연면적(areaBands.bandAreaOf) */
+const KEEP_RAW = ['totalFloorAr'] as const;
+/** raw를 거의 비운 표시·집계용 사본 — 매수자·매도자는 정규화 필드로 옮기고, 집계에 필요한 raw 필드만 남긴다 */
+export const stripRaw = (r: TxRecord): TxRecord => {
+  const raw: Record<string, unknown> = {};
+  for (const k of KEEP_RAW) if (r.raw?.[k] !== undefined) raw[k] = r.raw[k];
+  return { ...r, buyer: buyerOf(r), seller: sellerOf(r), raw };
+};
 
 const newId = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
