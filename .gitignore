@@ -4,3 +4,4 @@ node_modules
 .env.local
 *.tsbuildinfo
 vitest.config.ts.timestamp-*.mjs
+public/viewer

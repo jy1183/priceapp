@@ -3,6 +3,7 @@ import dynamic from 'next/dynamic';
 import { useEffect, useMemo, useState } from 'react';
 import RegionPicker, { type RegionValue } from '@/components/RegionPicker';
 import { useStore } from '@/lib/store';
+import { useViewerMode, VIEWER_QUERY_NOTICE } from '@/lib/viewerMode';
 
 const ReactECharts = dynamic(() => import('echarts-for-react'), { ssr: false });
 
@@ -14,6 +15,7 @@ const ageStart = (l: string) => { const m = l.match(/-?\d+/); return m ? parseIn
 /** KOSIS 인구분석 — 조회지역 총인구·연령대 + 기준1(시도)/기준2(지역) 연령대 비율 비교.
  *  조회 결과는 스토어(localStorage)에 유지 — [초기화] 전까지 화면 이동·새로고침에도 표시. */
 export default function KosisPopulation() {
+  const viewer = useViewerMode(); // 오프라인 뷰어에서는 조회(서버 API) 비활성화
   const txForm = useStore((s) => s.txForm);
   const kosisResult = useStore((s) => s.kosisResult);
   const setKosisResult = useStore((s) => s.setKosisResult);
@@ -97,9 +99,10 @@ export default function KosisPopulation() {
       <h2 className="mb-2 text-lg font-semibold">인구분석 (KOSIS 주민등록인구)</h2>
       <div className="no-print mb-3 flex flex-wrap items-end gap-3 rounded-lg border bg-white p-4">
         <RegionPicker value={region} onChange={setRegion} />
-        <button onClick={load} disabled={loading} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+        <button onClick={load} disabled={loading || viewer} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
           {loading ? '조회 중…' : '인구 조회'}
         </button>
+        {viewer && <span className="pb-1.5 text-xs text-amber-700">{VIEWER_QUERY_NOTICE}</span>}
         {kosisResult && (
           <button onClick={() => setKosisResult(null)} className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50">
             초기화

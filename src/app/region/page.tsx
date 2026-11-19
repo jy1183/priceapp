@@ -5,6 +5,7 @@ import { REB_STATS, rebStat, REB_NATIONWIDE_CLS, rebSidoName, findSidoCls, findG
 import { sigunguName } from '@/lib/regions';
 import { useStore } from '@/lib/store';
 import KosisPopulation from '@/components/KosisPopulation';
+import { useViewerMode, VIEWER_QUERY_NOTICE } from '@/lib/viewerMode';
 
 const ReactECharts = dynamic(() => import('echarts-for-react'), { ssr: false });
 type Pt = { time: string; value: number };
@@ -13,6 +14,7 @@ type Pt = { time: string; value: number };
  *  지역선정: 실거래 조회지역(txForm) 기준 기준1(시도)·기준2(구)를 비교.
  *  조회 결과는 스토어(localStorage)에 유지 — [초기화] 전까지 화면 이동·새로고침에도 표시. */
 export default function RegionPage() {
+  const viewer = useViewerMode(); // 오프라인 뷰어에서는 조회(서버 API) 비활성화
   const txForm = useStore((s) => s.txForm);
   const rebResult = useStore((s) => s.rebResult);
   const setRebResult = useStore((s) => s.setRebResult);
@@ -41,6 +43,7 @@ export default function RegionPage() {
 
   // 통계 변경 시 지역 항목 로드 + 실거래 조회지역 기준 기준1/기준2 자동선택
   useEffect(() => {
+    if (viewer) return;
     (async () => {
       setErr('');
       try {
@@ -161,7 +164,7 @@ export default function RegionPage() {
             <input value={end} onChange={(e) => setEnd(e.target.value)} className="w-24 rounded border px-2 py-1" />
           </div>
         </L>
-        <button onClick={load} disabled={loading} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+        <button onClick={load} disabled={loading || viewer} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
           {loading ? '조회 중…' : '조회'}
         </button>
         {rebResult && (
@@ -170,6 +173,7 @@ export default function RegionPage() {
           </button>
         )}
         <span className="pb-1.5 text-xs text-gray-400">주기 {stat.cycle}</span>
+        {viewer && <span className="pb-1.5 text-xs text-amber-700">{VIEWER_QUERY_NOTICE}</span>}
       </div>
 
       {err && <div className="mb-4 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">{err}</div>}

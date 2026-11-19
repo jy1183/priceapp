@@ -5,6 +5,7 @@ import { normalize, txValue, type TxRecord } from '@/lib/normalize';
 import type { Facility, Trade } from '@/lib/molit';
 import RegionPicker, { type RegionValue } from '@/components/RegionPicker';
 import { useStore } from '@/lib/store';
+import { useViewerMode, VIEWER_QUERY_NOTICE } from '@/lib/viewerMode';
 import {
   FILTER_KEYS, distinctValues, applyFilters, sortByBuildYear, describeFilters, buildSetLabel, visibleColumns,
   type FilterKey, type TxFilters, type SortDir,
@@ -60,6 +61,7 @@ async function fetchTx(f: Pick<QueryForm, 'lawdCd' | 'dong' | 'facility' | 'trad
 let _qid = 1;
 
 export default function TransactionsPage() {
+  const viewer = useViewerMode(); // 오프라인 뷰어에서는 조회(서버 API) 비활성화
   const txForm = useStore((st) => st.txForm);
   const setTxForm = useStore((st) => st.setTxForm);
   const rows = useStore((st) => st.tx);            // 표시 소스 = 스토어(유지)
@@ -202,15 +204,16 @@ export default function TransactionsPage() {
             <input value={to} onChange={(e) => setTo(e.target.value)} className="w-24 rounded border px-2 py-1" />
           </div>
         </L>
-        <button onClick={query} disabled={loading}
+        <button onClick={query} disabled={loading || viewer}
           className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
           {loading ? '조회 중…' : '조회'}
         </button>
-        <button onClick={addQueryLine}
-          className="rounded-md border border-blue-300 px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50">
+        <button onClick={addQueryLine} disabled={viewer}
+          className="rounded-md border border-blue-300 px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 disabled:opacity-50">
           + 조회 추가
         </button>
       </div>
+      {viewer && <p className="no-print mb-4 text-xs text-amber-700">{VIEWER_QUERY_NOTICE}</p>}
 
       {extras.length > 0 && (
         <div className="no-print mb-4 space-y-3">
@@ -240,7 +243,7 @@ export default function TransactionsPage() {
                     <input value={f.to} onChange={(e) => updateExtra(f.id, { to: e.target.value })} className="w-24 rounded border px-2 py-1" />
                   </div>
                 </L>
-                <button onClick={() => runExtra(f)} disabled={stt.loading}
+                <button onClick={() => runExtra(f)} disabled={stt.loading || viewer}
                   className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50">
                   {stt.loading ? '조회 중…' : '조회(추가)'}
                 </button>
