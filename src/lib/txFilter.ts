@@ -88,3 +88,27 @@ export function buildSetLabel(seq: number, rows: TxRecord[], filterDesc: string[
   const deals = [...new Set(rows.map((r) => r.dealType))].join('·');
   return [`#${seq}`, `${facs} ${deals}`.trim(), ...filterDesc, `${rows.length}건`].join(' · ');
 }
+
+/** 실거래 표 컬럼 정의 — 조회 페이지와 필터링 데이터 페이지가 같은 컬럼·서식을 쓴다 */
+export interface TxColumn { key: keyof TxRecord; label: string; fmt?: (v: any) => string }
+const num0 = (v: any) => v?.toLocaleString() ?? '';
+export const TX_COLUMNS: TxColumn[] = [
+  { key: 'facility', label: '유형' },
+  { key: 'name', label: '시설명' },
+  { key: 'dealType', label: '거래' },
+  { key: 'dealDate', label: '거래일' },
+  { key: 'buildYear', label: '준공연도' },
+  { key: 'areaM2', label: '면적(㎡)' },
+  { key: 'amountManwon', label: '금액(만원)', fmt: num0 },
+  { key: 'depositManwon', label: '보증금(만원)', fmt: num0 },
+  { key: 'monthlyRentManwon', label: '월세(만원)', fmt: num0 },
+  { key: 'floor', label: '층' },
+  { key: 'buyer', label: '매수자' },
+  { key: 'seller', label: '매도자' },
+  { key: 'ppa', label: '평당가(천원/평)', fmt: num0 },
+];
+
+/** 값이 하나라도 있는 컬럼만 노출 — 전월세·토지 조회 시 매수자·매도자가 자동으로 숨는다 */
+export function visibleColumns(rows: TxRecord[]): TxColumn[] {
+  return TX_COLUMNS.filter((c) => rows.some((r) => { const v = txValue(r, c.key); return v != null && v !== ''; }));
+}

@@ -17,6 +17,7 @@ const NAV_GROUPS = [
     items: [
       { href: '/sise-analysis', label: '시세 분석' },
       { href: '/tx-analysis', label: '실거래가 분석' },
+      { href: '/tx-filtered', label: '필터링 데이터' },
       { href: '/summary', label: '종합검토 결과' },
       { href: '/price-calc', label: '가격 산정' },
     ],

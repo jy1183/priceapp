@@ -6,7 +6,7 @@ import type { Facility, Trade } from '@/lib/molit';
 import RegionPicker, { type RegionValue } from '@/components/RegionPicker';
 import { useStore } from '@/lib/store';
 import {
-  FILTER_KEYS, distinctValues, applyFilters, sortByBuildYear, describeFilters, buildSetLabel,
+  FILTER_KEYS, distinctValues, applyFilters, sortByBuildYear, describeFilters, buildSetLabel, visibleColumns,
   type FilterKey, type TxFilters, type SortDir,
 } from '@/lib/txFilter';
 
@@ -124,24 +124,7 @@ export default function TransactionsPage() {
   }
 
   // 값 있는 컬럼만 노출
-  const cols = useMemo(() => {
-    const defs: { key: keyof TxRecord; label: string; fmt?: (v: any) => string }[] = [
-      { key: 'facility', label: '유형' },
-      { key: 'name', label: '시설명' },
-      { key: 'dealType', label: '거래' },
-      { key: 'dealDate', label: '거래일' },
-      { key: 'buildYear', label: '준공연도' },
-      { key: 'areaM2', label: '면적(㎡)' },
-      { key: 'amountManwon', label: '금액(만원)', fmt: (v) => v?.toLocaleString() ?? '' },
-      { key: 'depositManwon', label: '보증금(만원)', fmt: (v) => v?.toLocaleString() ?? '' },
-      { key: 'monthlyRentManwon', label: '월세(만원)', fmt: (v) => v?.toLocaleString() ?? '' },
-      { key: 'floor', label: '층' },
-      { key: 'buyer', label: '매수자' },
-      { key: 'seller', label: '매도자' },
-      { key: 'ppa', label: '평당가(천원/평)', fmt: (v) => v?.toLocaleString() ?? '' },
-    ];
-    return defs.filter((c) => rows.some((r) => { const v = txValue(r, c.key); return v != null && v !== ''; }));
-  }, [rows]);
+  const cols = useMemo(() => visibleColumns(rows), [rows]);
 
   // 필터 컬럼별 고유값 목록 (드롭다운 옵션) — 빈값은 '(빈값)' 항목으로 포함
   const distinct = useMemo(() => {
