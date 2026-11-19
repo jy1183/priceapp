@@ -17,3 +17,8 @@ interface FileSystemDirectoryHandle {
 interface Window {
   showDirectoryPicker?(options?: { mode?: 'read' | 'readwrite' }): Promise<FileSystemDirectoryHandle>;
 }
+type FsPermissionDescriptor = { mode?: 'read' | 'readwrite' };
+interface FileSystemHandle {
+  queryPermission?(descriptor?: FsPermissionDescriptor): Promise<'granted' | 'denied' | 'prompt'>;
+  requestPermission?(descriptor?: FsPermissionDescriptor): Promise<'granted' | 'denied' | 'prompt'>;
+}
