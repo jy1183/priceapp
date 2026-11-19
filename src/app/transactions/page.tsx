@@ -4,11 +4,15 @@ import { normalize, txValue, type TxRecord } from '@/lib/normalize';
 import type { Facility, Trade } from '@/lib/molit';
 import RegionPicker, { type RegionValue } from '@/components/RegionPicker';
 import { useStore } from '@/lib/store';
+import {
+  FILTER_KEYS, distinctValues, applyFilters, sortByBuildYear,
+  type FilterKey, type TxFilters, type SortDir,
+} from '@/lib/txFilter';
 
 const FACILITIES: Facility[] = ['아파트', '오피스텔', '연립다세대', '단독다가구', '토지', '상업업무용'];
 
 /** 헤더 클릭 드롭다운 필터를 지원하는 컬럼 */
-const FILTERABLE = new Set<keyof TxRecord>(['name', 'dealType']);
+const FILTERABLE = new Set<keyof TxRecord>(FILTER_KEYS);
 
 function monthsBetween(from: string, to: string): string[] {
   const out: string[] = [];
@@ -73,16 +77,18 @@ export default function TransactionsPage() {
   const [err, setErr] = useState('');
 
   // 헤더 드롭다운 필터: 컬럼별 "표시할 값" 집합 (없으면 전체 표시)
-  const [filters, setFilters] = useState<Partial<Record<keyof TxRecord, Set<string>>>>({});
-  const [openFilter, setOpenFilter] = useState<keyof TxRecord | null>(null);
+  const [filters, setFilters] = useState<TxFilters>({});
+  const [openFilter, setOpenFilter] = useState<FilterKey | null>(null);
   const [filterSearch, setFilterSearch] = useState('');
+  // 준공연도 정렬: 오름차순 → 내림차순 → 해제
+  const [sortDir, setSortDir] = useState<SortDir>(null);
 
   // 추가 조회 라인 (기존 데이터에 누적)
   const [extras, setExtras] = useState<(QueryForm & { id: number })[]>([]);
   const [extraState, setExtraState] = useState<Record<number, { loading: boolean; err: string; added: number | null }>>({});
 
   async function query() {
-    setLoading(true); setErr(''); setFilters({}); setOpenFilter(null);
+    setLoading(true); setErr(''); setFilters({}); setOpenFilter(null); setSortDir(null);
     try {
       const all = await fetchTx({ lawdCd: region.lawdCd, dong: region.dong, facility, trade, from, to });
       setTxStore(all, { facility, trade, region: `${region.sido} ${region.dong}`.trim(), from, to });
@@ -132,44 +138,39 @@ export default function TransactionsPage() {
     return defs.filter((c) => rows.some((r) => { const v = txValue(r, c.key); return v != null && v !== ''; }));
   }, [rows]);
 
-  // 필터 컬럼별 고유값 목록 (드롭다운 옵션)
+  // 필터 컬럼별 고유값 목록 (드롭다운 옵션) — 빈값은 '(빈값)' 항목으로 포함
   const distinct = useMemo(() => {
-    const m: Partial<Record<keyof TxRecord, string[]>> = {};
-    for (const key of FILTERABLE) {
-      const s = new Set<string>();
-      for (const r of rows) { const v = r[key]; if (v != null && v !== '') s.add(String(v)); }
-      m[key] = [...s].sort((a, b) => a.localeCompare(b, 'ko'));
-    }
+    const m = {} as Record<FilterKey, string[]>;
+    for (const key of FILTER_KEYS) m[key] = distinctValues(rows, key);
     return m;
   }, [rows]);
 
-  // 활성 필터를 모두 통과한 행만 표시
-  const filteredRows = useMemo(() => rows.filter((r) =>
-    (Object.entries(filters) as [keyof TxRecord, Set<string>][])
-      .every(([k, set]) => !set || set.has(String(r[k])))
-  ), [rows, filters]);
+  // 활성 필터를 모두 통과한 행 → 준공연도 정렬 적용 후 표시
+  const filteredRows = useMemo(() => applyFilters(rows, filters), [rows, filters]);
+  const displayRows = useMemo(() => sortByBuildYear(filteredRows, sortDir), [filteredRows, sortDir]);
 
-  function openFilterFor(key: keyof TxRecord) {
+  function openFilterFor(key: FilterKey) {
     setFilterSearch('');
     setOpenFilter((cur) => (cur === key ? null : key));
-    // 최초 열 때는 전체 선택 상태로 초기화
+    // 최초 열 때는 전체 선택 상태로 초기화 ((빈값) 포함이라 열기만 해도 행이 사라지지 않음)
     setFilters((f) => (f[key] ? f : { ...f, [key]: new Set(distinct[key]) }));
   }
-  function toggleFilterValue(key: keyof TxRecord, val: string) {
+  function toggleFilterValue(key: FilterKey, val: string) {
     setFilters((f) => {
       const cur = new Set(f[key] ?? distinct[key]);
       if (cur.has(val)) cur.delete(val); else cur.add(val);
       return { ...f, [key]: cur };
     });
   }
-  function setAllFilter(key: keyof TxRecord, all: boolean) {
+  function setAllFilter(key: FilterKey, all: boolean) {
     setFilters((f) => ({ ...f, [key]: new Set(all ? distinct[key] : []) }));
   }
   // 필터가 걸려 일부만 표시 중인 컬럼인지
-  const isFiltered = (key: keyof TxRecord) => {
+  const isFiltered = (key: FilterKey) => {
     const set = filters[key];
     return !!set && set.size < (distinct[key]?.length ?? 0);
   };
+  const cycleSort = () => setSortDir((d) => (d === null ? 'asc' : d === 'asc' ? 'desc' : null));
 
   return (
     <div className="max-w-6xl">
@@ -269,23 +270,29 @@ export default function TransactionsPage() {
                     {FILTERABLE.has(c.key) ? (
                       <FilterHeader
                         label={c.label}
-                        active={isFiltered(c.key)}
+                        active={isFiltered(c.key as FilterKey)}
                         open={openFilter === c.key}
-                        values={distinct[c.key] ?? []}
-                        selected={filters[c.key] ?? new Set(distinct[c.key])}
+                        values={distinct[c.key as FilterKey] ?? []}
+                        selected={filters[c.key as FilterKey] ?? new Set(distinct[c.key as FilterKey])}
                         search={filterSearch}
                         onSearch={setFilterSearch}
-                        onToggle={() => openFilterFor(c.key)}
-                        onToggleValue={(v) => toggleFilterValue(c.key, v)}
-                        onSelectAll={() => setAllFilter(c.key, true)}
-                        onClear={() => setAllFilter(c.key, false)}
+                        onToggle={() => openFilterFor(c.key as FilterKey)}
+                        onToggleValue={(v) => toggleFilterValue(c.key as FilterKey, v)}
+                        onSelectAll={() => setAllFilter(c.key as FilterKey, true)}
+                        onClear={() => setAllFilter(c.key as FilterKey, false)}
                       />
+                    ) : c.key === 'buildYear' ? (
+                      <button type="button" onClick={cycleSort} title="클릭: 오름차순 → 내림차순 → 해제"
+                        className={`flex items-center gap-1 font-medium ${sortDir ? 'text-blue-600' : 'text-gray-600 hover:text-gray-900'}`}>
+                        {c.label}
+                        <span className="text-[9px] leading-none">{sortDir === 'asc' ? '▲' : sortDir === 'desc' ? '▼' : '↕'}</span>
+                      </button>
                     ) : c.label}
                   </th>
                 ))}</tr>
               </thead>
               <tbody>
-                {filteredRows.map((r, i) => (
+                {displayRows.map((r, i) => (
                   <tr key={i} className="border-t">
                     {cols.map((c) => (
                       <td key={String(c.key)} className="whitespace-nowrap px-3 py-1.5">
